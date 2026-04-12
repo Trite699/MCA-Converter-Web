@@ -1,10 +1,491 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>MCA Converter</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+<meta charset="utf-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans, sans-serif); color: var(--color-text-primary); background: transparent; }
+.wrap { max-width: 600px; margin: 0 auto; padding: 1.5rem 1rem; }
+h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; color: var(--color-text-primary); }
+.sub { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 20px; }
+.card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1rem 1.25rem; margin-bottom: 12px; }
+.card-title { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+.drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border: 1.5px dashed var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 1.25rem 1rem; text-align: center; cursor: pointer; transition: border-color .15s; }
+.drop:hover { border-color: var(--color-border-primary); }
+.drop-icon { width: 28px; height: 28px; border-radius: 50%; background: var(--color-background-secondary); display: flex; align-items: center; justify-content: center; }
+.drop-icon svg { width: 14px; height: 14px; stroke: var(--color-text-secondary); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.drop-label { font-size: 13px; color: var(--color-text-secondary); }
+.drop-hint { font-size: 11px; color: var(--color-text-tertiary); }
+.meta-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-top: 10px; }
+.metric { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 8px 10px; }
+.metric-label { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 2px; }
+.metric-val { font-size: 13px; font-weight: 500; color: var(--color-text-primary); font-family: var(--font-mono, monospace); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: 12px; color: var(--color-text-secondary); font-weight: 500; }
+.field input, .field select { font-family: var(--font-mono, monospace); font-size: 13px; padding: 7px 10px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-secondary); color: var(--color-text-primary); width: 100%; }
+.field input:focus, .field select:focus { outline: none; border-color: var(--color-border-primary); }
+.ver-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.ver-row .field { flex-direction: row; align-items: center; gap: 8px; }
+.ver-row .field label { white-space: nowrap; }
+.ver-row .field select { width: auto; }
+.ver-hint { font-size: 11px; color: var(--color-text-tertiary); }
+.loop-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-secondary); cursor: pointer; user-select: none; }
+.loop-toggle input[type=checkbox] { width: 14px; height: 14px; accent-color: var(--color-text-primary); cursor: pointer; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { font-family: var(--font-sans, sans-serif); font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: transparent; color: var(--color-text-primary); cursor: pointer; transition: background .12s; white-space: nowrap; }
+.btn:hover:not(:disabled) { background: var(--color-background-secondary); }
+.btn:active:not(:disabled) { transform: scale(0.98); }
+.btn:disabled { opacity: .35; cursor: default; }
+.btn-primary { background: var(--color-text-primary); color: var(--color-background-primary); border-color: transparent; }
+.btn-primary:hover:not(:disabled) { opacity: .88; background: var(--color-text-primary); }
+.status { font-size: 13px; padding: 7px 11px; border-radius: var(--border-radius-md); margin-top: 10px; background: var(--color-background-secondary); color: var(--color-text-secondary); display: flex; align-items: center; gap: 6px; }
+.status.ok   { background: var(--color-background-success); color: var(--color-text-success); }
+.status.err  { background: var(--color-background-danger);  color: var(--color-text-danger); }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+audio { width: 100%; margin-top: 10px; border-radius: var(--border-radius-md); }
+.player-wrap { margin-top: 10px; padding: 10px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); }
+.player-info { font-size: 11px; color: var(--color-text-tertiary); margin-top: 6px; display: flex; justify-content: space-between; }
+.divider { border: none; border-top: 0.5px solid var(--color-border-tertiary); margin: 10px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>MCA ↔ WAV Converter</h1>
+  <p class="sub">Capcom MADP · versions 3 / 4 / 5 · DSP-ADPCM · vgmstream-accurate</p>
+
+  <div class="card">
+    <div class="card-title">Input file</div>
+    <label class="drop" id="dropZone">
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <span class="drop-label" id="dropText">Click to choose a .mca or .wav file</span>
+      <span class="drop-hint">.mca · .wav</span>
+      <input type="file" accept=".mca,.wav" id="fileInput" style="display:none">
+    </label>
+    <div class="meta-grid" id="metaGrid" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Loop points</div>
+    <div class="row2">
+      <div class="field">
+        <label for="loopStart">Loop start (samples)</label>
+        <input type="number" id="loopStart" value="0" min="0">
+      </div>
+      <div class="field">
+        <label for="loopEnd">Loop end (samples)</label>
+        <input type="number" id="loopEnd" value="0" min="0">
+      </div>
+    </div>
+    <div class="ver-row">
+      <div class="field">
+        <label for="version">Output MCA version</label>
+        <select id="version">
+          <option value="3">v3 — RE Mercs, SSF4</option>
+          <option value="4" selected>v4 — EX Troopers, AA5</option>
+          <option value="5">v5 — AA6, MH4U</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Convert</div>
+    <div class="btn-row">
+      <button class="btn" id="btnDecode" disabled>MCA → WAV</button>
+      <button class="btn" id="btnEncode" disabled>WAV → MCA</button>
+    </div>
+    <div class="status" id="status" style="display:none">
+      <span class="dot"></span>
+      <span id="statusText"></span>
+    </div>
+  </div>
+
+  <div class="card" id="playerCard" style="display:none">
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>Preview</span>
+      <label class="loop-toggle" id="loopToggleLabel">
+        <input type="checkbox" id="loopToggle" checked>
+        Loop playback
+      </label>
+    </div>
+    <div class="player-wrap">
+      <audio id="player" controls></audio>
+      <div class="player-info">
+        <span id="playerFile"></span>
+        <span id="playerLoopInfo"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="dlCard" style="display:none">
+    <div class="card-title">Output</div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btnDl">
+        <span id="dlLabel">Download file</span>
+      </button>
+    </div>
+    <div style="font-size:12px;color:var(--color-text-tertiary);margin-top:8px;" id="dlMeta"></div>
+  </div>
+</div>
+
+<script>
+let fileData=null,fileExt="",fileName="";
+let outBlob=null,outName="";
+let parsedSampleRate=44100;
+const player=document.getElementById("player");
+
+document.getElementById("fileInput").addEventListener("change",e=>{const f=e.target.files[0];if(f)handleFile(f);});
+document.getElementById("btnDecode").addEventListener("click",decode);
+document.getElementById("btnEncode").addEventListener("click",encode);
+document.getElementById("btnDl").addEventListener("click",dlFile);
+player.addEventListener("timeupdate",handleTimeUpdate);
+document.getElementById("loopStart").addEventListener("input",updateLoopInfo);
+document.getElementById("loopEnd").addEventListener("input",updateLoopInfo);
+
+function setStatus(msg,cls){
+  const el=document.getElementById("status");
+  document.getElementById("statusText").textContent=msg;
+  el.className="status "+(cls||""); el.style.display="flex";
+}
+function setMeta(pairs){
+  const g=document.getElementById("metaGrid");
+  g.innerHTML=pairs.map(([l,v])=>`<div class="metric"><div class="metric-label">${l}</div><div class="metric-val">${v}</div></div>`).join("");
+  g.style.display="grid";
+}
+function hex(n){return"0x"+(n>>>0).toString(16).toUpperCase();}
+function tick(){return new Promise(r=>setTimeout(r,20));}
+function baseName(n){return n.replace(/\.[^.]+$/,"");}
+function getLS(){return parseInt(document.getElementById("loopStart").value)||0;}
+function getLE(){return parseInt(document.getElementById("loopEnd").value)||0;}
+function getVer(){return parseInt(document.getElementById("version").value)||4;}
+function isLoopEnabled(){return document.getElementById("loopToggle").checked;}
+
+function updateLoopInfo(){
+  const ls=getLS(),le=getLE(),sr=parsedSampleRate||44100;
+  if(le>ls){
+    const dur=((le-ls)/sr).toFixed(2);
+    document.getElementById("playerLoopInfo").textContent=`Loop: ${ls.toLocaleString()} → ${le.toLocaleString()} (${dur}s)`;
+  } else {
+    document.getElementById("playerLoopInfo").textContent="No loop";
+  }
+}
+
+async function handleFile(f){
+  fileName=f.name;
+  fileExt=f.name.split(".").pop().toLowerCase();
+  fileData=new Uint8Array(await f.arrayBuffer());
+  document.getElementById("dropText").textContent=f.name;
+  document.getElementById("playerCard").style.display="none";
+  document.getElementById("dlCard").style.display="none";
+  document.getElementById("status").style.display="none";
+  document.getElementById("btnDecode").disabled=fileExt!=="mca";
+  document.getElementById("btnEncode").disabled=fileExt!=="wav";
+
+  if(fileExt==="mca"){
+    try{
+      const m=parseMCAHeader(fileData);
+      parsedSampleRate=m.sampleRate;
+      document.getElementById("loopStart").value=m.loopStart;
+      document.getElementById("loopEnd").value=m.loopEnd;
+      setMeta([
+        ["Version","v"+m.version],
+        ["Channels",m.channels],
+        ["Rate",m.sampleRate+" Hz"],
+        ["Samples",m.numSamples.toLocaleString()],
+        ["Loop start",m.loopStart.toLocaleString()],
+        ["Loop end",m.loopEnd.toLocaleString()],
+        ["Audio at",hex(m.startOffset)],
+        ["Head",hex(m.headSize)],
+      ]);
+      updateLoopInfo();
+      setStatus("MCA v"+m.version+" parsed — "+m.channels+"ch "+m.sampleRate+"Hz","ok");
+    }catch(e){setStatus("MCA parse error: "+e.message,"err");}
+  } else if(fileExt==="wav"){
+    try{
+      const w=parseWAVHeader(fileData);
+      parsedSampleRate=w.sampleRate;
+      setMeta([
+        ["Channels",w.channels],
+        ["Rate",w.sampleRate+" Hz"],
+        ["Bit depth",w.bitsPerSample+"b"],
+        ["Samples",w.numSamples.toLocaleString()],
+      ]);
+      updateLoopInfo();
+      setStatus("WAV loaded — "+w.channels+"ch "+w.sampleRate+"Hz","ok");
+    }catch(e){setStatus("WAV parse error: "+e.message,"err");}
+  }
+}
+
+async function decode(){
+  setStatus("Decoding…","");
+  await tick();
+  try{
+    const wav=mcaToWav(fileData);
+    const blob=new Blob([wav],{type:"audio/wav"});
+    const name=baseName(fileName)+".wav";
+    outBlob=blob; outName=name;
+    const url=URL.createObjectURL(blob);
+    player.src=url;
+    document.getElementById("playerCard").style.display="";
+    document.getElementById("playerFile").textContent=name;
+    updateLoopInfo();
+    showDl(name,wav.length);
+    setStatus("Decoded → "+name,"ok");
+  }catch(e){setStatus("Decode error: "+e.message,"err");}
+}
+
+async function encode(){
+  setStatus("Encoding…","");
+  await tick();
+  try{
+    const mca=wavToMca(fileData,getLS(),getLE(),getVer());
+    const blob=new Blob([mca],{type:"application/octet-stream"});
+    const name=baseName(fileName)+".mca";
+    outBlob=blob; outName=name;
+    document.getElementById("playerCard").style.display="none";
+    showDl(name,mca.length);
+    setStatus("Encoded → "+name,"ok");
+  }catch(e){setStatus("Encode error: "+e.message,"err");}
+}
+
+function showDl(name,bytes){
+  document.getElementById("dlLabel").textContent="Download "+name;
+  document.getElementById("dlMeta").textContent=name+" · "+(bytes/1024).toFixed(1)+" KB";
+  document.getElementById("dlCard").style.display="";
+}
+
+function dlFile(){
+  if(!outBlob)return;
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(outBlob);
+  a.download=outName; a.click();
+}
+
+function handleTimeUpdate(){
+  if(!isLoopEnabled())return;
+  const ls=getLS(),le=getLE(),sr=parsedSampleRate||44100;
+  if(le>ls&&player.currentTime*sr>=le)
+    player.currentTime=ls/sr;
+}
+
+function parseMCAHeader(buf){
+  const v=new DataView(buf.buffer,buf.byteOffset);
+  const len=buf.length;
+  const magic=String.fromCharCode(buf[0],buf[1],buf[2],buf[3]);
+  if(magic!=="MADP")throw new Error("Not a MADP/MCA file (magic: "+magic+")");
+  const version=v.getUint16(0x04,true);
+  const channels=v.getUint8(0x08);
+  const interleave=v.getUint16(0x0A,true)||0x100;
+  const numSamples=v.getUint32(0x0C,true);
+  const sampleRate=v.getUint16(0x10,true);
+  const loopStart=v.getUint32(0x14,true);
+  const loopEnd=v.getUint32(0x18,true);
+  const dataSize=v.getUint32(0x20,true);
+  if(channels<1||channels>8)throw new Error("Bad channel count: "+channels);
+  if(sampleRate<100||sampleRate>192000)throw new Error("Bad sample rate: "+sampleRate);
+  if(dataSize===0||dataSize>len)throw new Error("Bad data_size: "+hex(dataSize)+" (file: "+hex(len)+")");
+  const COEF_SPACING=0x30;
+  let headSize,coefShift,coefStart,startOffset;
+  if(version<=3){
+    headSize=len-dataSize; coefShift=0;
+    coefStart=headSize-COEF_SPACING*channels;
+    startOffset=headSize;
+  } else {
+    headSize=v.getUint16(0x1C,true);
+    coefShift=v.getUint16(0x28,true);
+    coefStart=headSize-COEF_SPACING*channels;
+    startOffset=len-dataSize;
+  }
+  const coefOffset=coefStart+coefShift*0x14;
+  if(startOffset<0||startOffset>=len)throw new Error("Audio start offset out of range: "+hex(startOffset)+" (file size: "+hex(len)+")");
+  if(coefOffset<0||coefOffset+COEF_SPACING*channels>startOffset)throw new Error("Coef block out of range: "+hex(coefOffset));
+  return{version,channels,interleave,numSamples,sampleRate,loopStart,loopEnd,headSize,coefOffset,startOffset,dataSize};
+}
+
+function mcaToWav(buf){
+  const meta=parseMCAHeader(buf);
+  const{channels,sampleRate,numSamples,startOffset,coefOffset,interleave}=meta;
+  const dv=new DataView(buf.buffer,buf.byteOffset);
+  const COEF_SPACING=0x30;
+  const coefs=[];
+  for(let ch=0;ch<channels;ch++){
+    const c=new Int16Array(16);
+    for(let i=0;i<16;i++)c[i]=dv.getInt16(coefOffset+ch*COEF_SPACING+i*2,true);
+    coefs.push(c);
+  }
+  const audioData=buf.slice(startOffset);
+  const pcm=decodeDSP(audioData,channels,numSamples,coefs,interleave);
+  return buildWAV(pcm,channels,sampleRate);
+}
+
+function decodeDSP(src,channels,totalSamples,coefs,interleave){
+  const SPB=14,BPB=8;
+  const fpB=Math.floor(interleave/BPB);
+  const out=new Int16Array(totalSamples*channels);
+  const hist1=new Int32Array(channels);
+  const hist2=new Int32Array(channels);
+  const done=new Int32Array(channels);
+  let block=0;
+  while(true){
+    let anyLeft=false;
+    for(let ch=0;ch<channels;ch++)if(done[ch]<totalSamples){anyLeft=true;break;}
+    if(!anyLeft)break;
+    for(let ch=0;ch<channels;ch++){
+      if(done[ch]>=totalSamples)continue;
+      const bBase=(block*channels+ch)*interleave;
+      if(bBase>=src.length)break;
+      for(let f=0;f<fpB&&done[ch]<totalSamples;f++){
+        const fOff=bBase+f*BPB;
+        if(fOff>=src.length)break;
+        const hdr=src[fOff];
+        const scale=1<<(hdr&0xF);
+        const ci=(hdr>>4)&0x7;
+        const c1=coefs[ch][ci*2],c2=coefs[ch][ci*2+1];
+        for(let s=0;s<SPB&&done[ch]<totalSamples;s++){
+          const bi=fOff+1+(s>>1);
+          if(bi>=src.length)break;
+          const raw=(s&1)?(src[bi]&0xF):((src[bi]>>4)&0xF);
+          const nib=raw>=8?raw-16:raw;
+          let smp=(((nib*scale)<<11)+1024+c1*hist1[ch]+c2*hist2[ch])>>11;
+          smp=Math.max(-32768,Math.min(32767,smp));
+          hist2[ch]=hist1[ch]; hist1[ch]=smp;
+          out[done[ch]*channels+ch]=smp;
+          done[ch]++;
+        }
+      }
+    }
+    block++;
+    if(block*channels*interleave>=src.length)break;
+  }
+  return out;
+}
+
+function buildWAV(pcm,channels,sampleRate){
+  const db=pcm.length*2;
+  const ab=new ArrayBuffer(44+db);
+  const dv=new DataView(ab);
+  const ws=(o,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i));};
+  ws(0,"RIFF"); dv.setUint32(4,36+db,true); ws(8,"WAVE");
+  ws(12,"fmt "); dv.setUint32(16,16,true); dv.setUint16(20,1,true);
+  dv.setUint16(22,channels,true); dv.setUint32(24,sampleRate,true);
+  dv.setUint32(28,sampleRate*channels*2,true); dv.setUint16(32,channels*2,true);
+  dv.setUint16(34,16,true); ws(36,"data"); dv.setUint32(40,db,true);
+  new Int16Array(ab,44).set(pcm);
+  return new Uint8Array(ab);
+}
+
+function parseWAVHeader(buf){
+  const dv=new DataView(buf.buffer,buf.byteOffset);
+  if(String.fromCharCode(buf[0],buf[1],buf[2],buf[3])!=="RIFF")throw new Error("Not a RIFF WAV");
+  const channels=dv.getUint16(22,true);
+  const sampleRate=dv.getUint32(24,true);
+  const bitsPerSample=dv.getUint16(34,true);
+  if(bitsPerSample!==16)throw new Error("Only 16-bit PCM WAV supported");
+  let off=12;
+  while(off<buf.length-8){
+    const id=String.fromCharCode(buf[off],buf[off+1],buf[off+2],buf[off+3]);
+    const sz=dv.getUint32(off+4,true);
+    if(id==="data")return{channels,sampleRate,bitsPerSample,numSamples:Math.floor(sz/(channels*2)),dataOffset:off+8,dataSize:sz};
+    off+=8+sz+(sz&1);
+  }
+  throw new Error("No data chunk in WAV");
+}
+
+function wavToMca(buf,loopStart=0,loopEnd=0,version=4){
+  const{channels,sampleRate,numSamples,dataOffset,dataSize}=parseWAVHeader(buf);
+  const pcm=new Int16Array(buf.buffer,buf.byteOffset+dataOffset,dataSize>>1);
+  const INTERLEAVE=0x100,BPB=8,SPB=14;
+  const fpB=Math.floor(INTERLEAVE/BPB);
+  const COEF_SPACING=0x30;
+  const chEnc=[],coefs=[];
+  for(let ch=0;ch<channels;ch++){
+    const mono=new Int16Array(numSamples);
+    for(let s=0;s<numSamples;s++)mono[s]=pcm[s*channels+ch];
+    const c=getCoefs(); coefs.push(c); chEnc.push(encodeMono(mono,c));
+  }
+  const totalFrames=Math.ceil(numSamples/SPB);
+  const totalBlocks=Math.ceil(totalFrames/fpB);
+  const audioBytes=totalBlocks*channels*INTERLEAVE;
+  const FIXED_HDR=0x30;
+  const headSize=FIXED_HDR+channels*COEF_SPACING;
+  const total=headSize+audioBytes;
+  const out=new Uint8Array(total);
+  const dv=new DataView(out.buffer);
+  out[0]=0x4D;out[1]=0x41;out[2]=0x44;out[3]=0x50;
+  dv.setUint16(0x04,version,true);
+  dv.setUint8(0x08,channels);
+  dv.setUint16(0x0A,INTERLEAVE,true);
+  dv.setUint32(0x0C,numSamples,true);
+  dv.setUint16(0x10,sampleRate,true);
+  dv.setUint32(0x14,loopStart,true);
+  dv.setUint32(0x18,loopEnd,true);
+  if(version<=3){
+    dv.setUint32(0x20,audioBytes,true);
+  } else {
+    dv.setUint16(0x1C,headSize,true);
+    dv.setUint32(0x20,audioBytes,true);
+    dv.setUint16(0x28,0,true);
+  }
+  for(let ch=0;ch<channels;ch++){
+    const cOff=FIXED_HDR+ch*COEF_SPACING;
+    for(let i=0;i<16;i++)dv.setInt16(cOff+i*2,coefs[ch][i],true);
+  }
+  for(let b=0;b<totalBlocks;b++)
+    for(let ch=0;ch<channels;ch++){
+      const src=chEnc[ch].slice(b*INTERLEAVE,(b+1)*INTERLEAVE);
+      out.set(src,headSize+(b*channels+ch)*INTERLEAVE);
+    }
+  return out;
+}
+
+function getCoefs(){
+  return new Int16Array([0x0000,0x0000,0x0800,0x0000,0x0000,0x0800,0x0400,0x0400,0x1000,0xF800,0x0E00,0xFA00,0x0C00,0xFC00,0x1800,0xF000]);
+}
+
+function encodeMono(pcm,coefs){
+  const SPB=14,BPB=8;
+  const frames=Math.ceil(pcm.length/SPB);
+  const out=new Uint8Array(frames*BPB);
+  let h1=0,h2=0;
+  for(let f=0;f<frames;f++){
+    const base=f*SPB;
+    let bCI=0,bSC=0,bErr=Infinity;
+    for(let ci=0;ci<8;ci++){
+      const c1=coefs[ci*2],c2=coefs[ci*2+1];
+      for(let sc=0;sc<16;sc++){
+        const scale=1<<sc;
+        let err=0,lh1=h1,lh2=h2;
+        for(let s=0;s<SPB;s++){
+          const x=base+s<pcm.length?pcm[base+s]:0;
+          const pred=((c1*lh1+c2*lh2)+1024)>>11;
+          const enc=Math.max(-8,Math.min(7,Math.round((x-pred)/scale)));
+          const dec=Math.max(-32768,Math.min(32767,pred+enc*scale));
+          err+=(x-dec)**2; lh2=lh1; lh1=dec;
+        }
+        if(err<bErr){bErr=err;bCI=ci;bSC=sc;}
+      }
+    }
+    const fOff=f*BPB;
+    out[fOff]=(bCI<<4)|bSC;
+    const c1=coefs[bCI*2],c2=coefs[bCI*2+1];
+    const scale=1<<bSC;
+    for(let s=0;s<SPB;s+=2){
+      const x0=base+s<pcm.length?pcm[base+s]:0;
+      const x1=base+s+1<pcm.length?pcm[base+s+1]:0;
+      const p0=((c1*h1+c2*h2)+1024)>>11;
+      const e0=Math.max(-8,Math.min(7,Math.round((x0-p0)/scale)));
+      h2=h1; h1=Math.max(-32768,Math.min(32767,p0+e0*scale));
+      const p1=((c1*h1+c2*h2)+1024)>>11;
+      const e1=Math.max(-8,Math.min(7,Math.round((x1-p1)/scale)));
+      h2=h1; h1=Math.max(-32768,Math.min(32767,p1+e1*scale));
+      out[fOff+1+(s>>1)]=((e0&0xF)<<4)|(e1&0xF);
+    }
+  }
+  return out;
+}
+</script>
+</body>
 </html>
