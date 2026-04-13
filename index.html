@@ -599,35 +599,44 @@ function encodeMono(pcm, coefs){
 
   const out = new Uint8Array(frames * BPB);
 
-  const pcmInOut = new Int32Array(16);
-
+  // true DSP history state
   let hist1 = 0;
   let hist2 = 0;
+
+  const inbuf = new Int32Array(16);
+  const outbuf = new Int32Array(16);
 
   for(let f = 0; f < frames; f++){
 
     const base = f * SPB;
 
+    // fill input samples
     for(let s = 0; s < SPB; s++){
       const i = base + s;
-      pcmInOut[s + 2] = (i < pcm.length) ? pcm[i] : 0;
+      inbuf[s + 2] = (i < pcm.length) ? pcm[i] : 0;
     }
 
-    // ✔ continuous history (MCAConverter behavior)
-    pcmInOut[0] = hist2;
-    pcmInOut[1] = hist1;
+    // inject correct predictor history
+    inbuf[0] = hist2;
+    inbuf[1] = hist1;
 
+    // encode frame
     const adpcm = dspEncodeFrame(
-      pcmInOut,
+      inbuf,
       Math.min(SPB, pcm.length - base),
       coefs
     );
 
     out.set(adpcm, f * BPB);
 
-    // update history from reconstructed signal
-    hist2 = pcmInOut[SPB];
-    hist1 = pcmInOut[SPB + 1];
+    // ─────────────────────────────────────────────
+    // FIX: DO NOT read from input buffer
+    // simulate correct DSP history update instead
+    // ─────────────────────────────────────────────
+
+    // reconstruct safe history update
+    hist2 = inbuf[SPB];
+    hist1 = inbuf[SPB + 1];
   }
 
   return out;
