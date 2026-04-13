@@ -379,17 +379,29 @@ function wavToMca(buf, loopStart = 0, loopEnd = 0, version = 5) {
     }
   }
 
-  // === INTERLEAVE AUDIO ===
-  for (let b = 0; b < totalBlocks; b++) {
-    for (let ch = 0; ch < channels; ch++) {
-      const src = chEnc[ch].slice(b * INTERLEAVE, (b + 1) * INTERLEAVE);
-      out.set(src, headSize + (b * channels + ch) * INTERLEAVE);
+  // === INTERLEAVE AUDIO (FIXED) ===
+const BPB = 8; // bytes per DSP frame
+
+for (let b = 0; b < totalBlocks; b++) {
+  for (let ch = 0; ch < channels; ch++) {
+
+    const dstBase = headSize + (b * channels + ch) * INTERLEAVE;
+    const srcBase = b * fpB * BPB;
+
+    for (let i = 0; i < fpB; i++) {
+      const srcOff = srcBase + i * BPB;
+      const dstOff = dstBase + i * BPB;
+
+      if (srcOff < chEnc[ch].length) {
+        out.set(chEnc[ch].subarray(srcOff, srcOff + BPB), dstOff);
+      } else {
+        // pad with zeros if needed
+        out.fill(0, dstOff, dstOff + BPB);
+      }
     }
   }
-
-  return out;
-    }
-
+}
+  
 // ══════════════════════════════════════════════════════════════════════════════
 // LPC COEF DERIVATION — faithful JS port of grok.c DSPCorrelateCoefs()
 // Derives 8 optimal predictor coef pairs from the signal via autocorrelation.
