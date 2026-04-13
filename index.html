@@ -351,35 +351,66 @@ function wavToMca(buf,loopStart=0,loopEnd=0,version=4){
   dv.setUint32(0x0C,numSamples,true);
   dv.setUint16(0x10,sampleRate,true);
 
-  // ─────────────────────────────────────────────
-  // FIXED LOOP WRITE
-  // ─────────────────────────────────────────────
-  dv.setUint32(0x14,loopStart,true);
-  dv.setUint32(0x18,loopEnd,true);
+ // ─────────────────────────────────────────────
+// FIXED LOOP WRITE (v5-safe)
+// ─────────────────────────────────────────────
 
-  if(version<=3){
-    dv.setUint32(0x20,audioBytes,true);
-  } else {
-    dv.setUint16(0x1C,headSize,true);
-    dv.setUint32(0x20,audioBytes,true);
-    dv.setUint16(0x28,0,true);
+// safety clamp (IMPORTANT)
+loopStart = Math.max(0, Math.min(loopStart, numSamples));
+loopEnd   = Math.max(0, Math.min(loopEnd, numSamples));
+
+// ensure valid loop ordering
+if(loopEnd <= loopStart){
+  loopStart = 0;
+  loopEnd = 0;
+}
+
+// ─────────────────────────────────────────────
+// write loop
+// ─────────────────────────────────────────────
+dv.setUint32(0x14, loopStart, true);
+dv.setUint32(0x18, loopEnd, true);
+
+// ─────────────────────────────────────────────
+// header section
+// ─────────────────────────────────────────────
+if(version <= 3){
+  dv.setUint32(0x20, audioBytes, true);
+} else {
+  dv.setUint16(0x1C, headSize, true);
+  dv.setUint32(0x20, audioBytes, true);
+  dv.setUint16(0x28, 0, true);
+}
+
+// ─────────────────────────────────────────────
+// coefficients
+// ─────────────────────────────────────────────
+for(let ch = 0; ch < channels; ch++){
+  const cOff = FIXED_HDR + ch * CS;
+  for(let i = 0; i < 16; i++){
+    dv.setInt16(cOff + i * 2, coefs[ch][i], true);
   }
+}
 
-  for(let ch=0;ch<channels;ch++){
-    const cOff=FIXED_HDR+ch*CS;
-    for(let i=0;i<16;i++){
-      dv.setInt16(cOff+i*2,coefs[ch][i],true);
-    }
+// ─────────────────────────────────────────────
+// data write (UNCHANGED but safer indexing)
+// ─────────────────────────────────────────────
+for(let b = 0; b < totalBlocks; b++){
+  for(let ch = 0; ch < channels; ch++){
+
+    const src = chEnc[ch].subarray(
+      b * INTERLEAVE,
+      (b + 1) * INTERLEAVE
+    );
+
+    out.set(
+      src,
+      headSize + (b * channels + ch) * INTERLEAVE
+    );
   }
+}
 
-  for(let b=0;b<totalBlocks;b++){
-    for(let ch=0;ch<channels;ch++){
-      const src=chEnc[ch].slice(b*INTERLEAVE,(b+1)*INTERLEAVE);
-      out.set(src, headSize + (b*channels + ch) * INTERLEAVE);
-    }
-  }
-
-  return out;
+return out;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
