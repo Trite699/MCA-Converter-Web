@@ -299,36 +299,96 @@ function parseWAVHeader(buf){
 // ══════════════════════════════════════════════════════════════════════════════
 // WAV → MCA ENCODER
 // ══════════════════════════════════════════════════════════════════════════════
-function wavToMca(buf,loopStart=0,loopEnd=0,version=4){
-  const{channels,sampleRate,numSamples,dataOffset,dataSize}=parseWAVHeader(buf);
-  const pcm=new Int16Array(buf.buffer,buf.byteOffset+dataOffset,dataSize>>1);
-  const INTERLEAVE=0x100,SPB=14,fpB=Math.floor(INTERLEAVE/8),CS=0x30,FIXED_HDR=0x30;
-  const chEnc=[],coefs=[];
-  for(let ch=0;ch<channels;ch++){
-    const mono=new Int16Array(numSamples);
-    for(let s=0;s<numSamples;s++)mono[s]=pcm[s*channels+ch];
-    const c=dspCorrelateCoefs(mono);
-    coefs.push(c);chEnc.push(encodeMono(mono,c));
-  }
-  const totalBlocks=Math.ceil(Math.ceil(numSamples/SPB)/fpB);
-  const audioBytes=totalBlocks*channels*INTERLEAVE;
-  const headSize=FIXED_HDR+channels*CS;
-  const out=new Uint8Array(headSize+audioBytes);
-  const dv=new DataView(out.buffer);
-  out[0]=0x4D;out[1]=0x41;out[2]=0x44;out[3]=0x50;
-  dv.setUint16(0x04,version,true);dv.setUint8(0x08,channels);dv.setUint16(0x0A,INTERLEAVE,true);
-  dv.setUint32(0x0C,numSamples,true);dv.setUint16(0x10,sampleRate,true);
-  dv.setUint32(0x14,loopStart,true);dv.setUint32(0x18,loopEnd,true);
-  if(version<=3){dv.setUint32(0x20,audioBytes,true);}
-  else{dv.setUint16(0x1C,headSize,true);dv.setUint32(0x20,audioBytes,true);dv.setUint16(0x28,0,true);}
-  for(let ch=0;ch<channels;ch++){const cOff=FIXED_HDR+ch*CS;for(let i=0;i<16;i++)dv.setInt16(cOff+i*2,coefs[ch][i],true);}
-  for(let b=0;b<totalBlocks;b++)
-    for(let ch=0;ch<channels;ch++){
-      const src=chEnc[ch].slice(b*INTERLEAVE,(b+1)*INTERLEAVE);
-      out.set(src,headSize+(b*channels+ch)*INTERLEAVE);
+function wavToMca(buf, loopStart = 0, loopEnd = 0, version = 5) {
+  const { channels, sampleRate, numSamples, dataOffset, dataSize } = parseWAVHeader(buf);
+
+  const pcm = new Int16Array(buf.buffer, buf.byteOffset + dataOffset, dataSize >> 1);
+
+  const INTERLEAVE = 0x100;
+  const SPB = 14;
+  const fpB = Math.floor(INTERLEAVE / 8);
+  const CS = 0x30;
+  const FIXED_HDR = 0x30;
+
+  const chEnc = [];
+  const coefs = [];
+
+  // === SPLIT CHANNELS ===
+  for (let ch = 0; ch < channels; ch++) {
+    const mono = new Int16Array(numSamples);
+
+    for (let s = 0; s < numSamples; s++) {
+      mono[s] = pcm[s * channels + ch];
     }
+
+    const c = dspCorrelateCoefs(mono);
+    coefs.push(c);
+    chEnc.push(encodeMono(mono, c));
+  }
+
+  // === SIZE CALC ===
+  const totalBlocks = Math.ceil(Math.ceil(numSamples / SPB) / fpB);
+  const audioBytes = totalBlocks * channels * INTERLEAVE;
+
+  const headSize = FIXED_HDR + channels * CS;
+  const out = new Uint8Array(headSize + audioBytes);
+  const dv = new DataView(out.buffer);
+
+  // === HEADER ===
+  out[0] = 0x4D; out[1] = 0x41; out[2] = 0x44; out[3] = 0x50; // "MADP"
+
+  dv.setUint16(0x04, version, true);
+  dv.setUint8(0x08, channels);
+  dv.setUint16(0x0A, INTERLEAVE, true);
+  dv.setUint32(0x0C, numSamples, true);
+  dv.setUint16(0x10, sampleRate, true);
+
+  // === LOOP FIX ===
+  if (loopEnd === 0) loopEnd = numSamples;
+
+  dv.setUint32(0x14, loopStart, true);
+  dv.setUint32(0x18, loopEnd, true);
+
+  // === VERSION FIX (MAIN ISSUE) ===
+  if (version <= 3) {
+    dv.setUint32(0x20, audioBytes, true);
+
+  } else if (version === 4) {
+    dv.setUint16(0x1C, headSize, true);
+    dv.setUint32(0x20, audioBytes, true);
+    dv.setUint16(0x28, 0, true);
+
+  } else if (version === 5) {
+    // ✅ Correct MCA v5 layout
+    dv.setUint16(0x1C, headSize, true);
+
+    dv.setUint32(0x20, 0, true);          // MUST be zero
+    dv.setUint16(0x28, 0, true);
+    dv.setUint32(0x2C, audioBytes, true); // real data size
+
+  } else {
+    throw new Error("Unsupported MCA version: " + version);
+  }
+
+  // === COEFFICIENTS ===
+  for (let ch = 0; ch < channels; ch++) {
+    const cOff = FIXED_HDR + ch * CS;
+
+    for (let i = 0; i < 16; i++) {
+      dv.setInt16(cOff + i * 2, coefs[ch][i], true);
+    }
+  }
+
+  // === INTERLEAVE AUDIO ===
+  for (let b = 0; b < totalBlocks; b++) {
+    for (let ch = 0; ch < channels; ch++) {
+      const src = chEnc[ch].slice(b * INTERLEAVE, (b + 1) * INTERLEAVE);
+      out.set(src, headSize + (b * channels + ch) * INTERLEAVE);
+    }
+  }
+
   return out;
-}
+    }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // LPC COEF DERIVATION — faithful JS port of grok.c DSPCorrelateCoefs()
