@@ -625,6 +625,79 @@ function dspEncodeFrame(pcmInOut, sampleCount, coefsFlat){
     }
 
     dist[i] = err;
+function dspEncodeFrame(pcmInOut, sampleCount, coefsFlat){
+
+  const inS = new Array(8);
+  const outS = new Array(8);
+
+  const dist = new Float64Array(8);
+  let best = 0;
+  let bestScale = 0;
+
+  for(let i = 0; i < 8; i++){
+
+    inS[i] = new Int32Array(16);
+    outS[i] = new Int8Array(14);
+
+    const c0 = coefsFlat[i * 2];
+    const c1 = coefsFlat[i * 2 + 1];
+
+    inS[i][0] = pcmInOut[0];
+    inS[i][1] = pcmInOut[1];
+
+    let maxErr = 0;
+
+    for(let s = 0; s < sampleCount; s++){
+
+      const pred =
+        ((inS[i][s] * c1) + (inS[i][s + 1] * c0)) >> 11;
+
+      let diff = pcmInOut[s + 2] - pred;
+
+      if(diff > 32767) diff = 32767;
+      if(diff < -32768) diff = -32768;
+
+      inS[i][s + 2] = pred + diff;
+
+      if(Math.abs(diff) > maxErr) maxErr = Math.abs(diff);
+    }
+
+    // FIXED scale selection
+    let scale = 0;
+    while(scale < 12 && maxErr > (7 << scale)) scale++;
+
+    bestScale = scale;
+
+    let err = 0;
+
+    for(let s = 0; s < sampleCount; s++){
+
+      const pred =
+        ((inS[i][s] * c1) + (inS[i][s + 1] * c0)) >> 11;
+
+      let diff = pcmInOut[s + 2] - pred;
+
+      const sc = 1 << scale;
+
+      let q = diff / sc;
+
+      q = q >= 0
+        ? Math.floor(q + 0.5)
+        : Math.ceil(q - 0.5);
+
+      if(q > 7) q = 7;
+      if(q < -8) q = -8;
+
+      outS[i][s] = q;
+
+      const recon = pred + (q * sc);
+      inS[i][s + 2] = recon;
+
+      const d = pcmInOut[s + 2] - recon;
+      err += d * d;
+    }
+
+    dist[i] = err;
   }
 
   // pick best predictor
@@ -632,23 +705,28 @@ function dspEncodeFrame(pcmInOut, sampleCount, coefsFlat){
     if(dist[i] < dist[best]) best = i;
   }
 
-  // write history back (IMPORTANT)
+  // restore history
   for(let s = 0; s < sampleCount; s++){
     pcmInOut[s + 2] = inS[best][s + 2];
   }
 
   const adpcm = new Uint8Array(8);
 
-  adpcm[0] = (best << 4) | (0 & 0xF); // scale written by caller OR fixed earlier
+  // IMPORTANT: correct scale write
+  adpcm[0] = (best << 4) | (bestScale & 0xF);
 
   for(let i = 0; i < 7; i++){
+    const n1 = outS[best][i * 2];
+    const n2 = outS[best][i * 2 + 1];
+
+    // SIGN-PRESERVING PACKING (CRITICAL FIX)
     adpcm[i + 1] =
-      ((outS[best][i * 2] & 0xF) << 4) |
-      (outS[best][i * 2 + 1] & 0xF);
+      ((n1 & 0xF) << 4) |
+      (n2 & 0xF);
   }
 
   return adpcm;
-      }
+}
 // ══════════════════════════════════════════════════════════════════════════════
 // MONO ENCODER — feeds DSPEncodeFrame frame by frame
 // ══════════════════════════════════════════════════════════════════════════════
