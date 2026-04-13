@@ -561,43 +561,44 @@ function dspEncodeFrame(pcmInOut,sampleCount,coefsFlat){
 // ══════════════════════════════════════════════════════════════════════════════
 // MONO ENCODER — feeds DSPEncodeFrame frame by frame
 // ══════════════════════════════════════════════════════════════════════════════
-function encodeMono(pcm, coefs, interleave = 0x100){
-  const SPB = 14, BPB = 8;
+function encodeMono(pcm, coefs){
+  const SPB = 14;
+  const BLOCK = 0x100;
+  const FRAMES_PER_BLOCK = BLOCK / 8;
+
   const frames = Math.ceil(pcm.length / SPB);
-  const out = new Uint8Array(frames * BPB);
+  const out = new Uint8Array(frames * 8);
 
   const pcmInOut = new Int32Array(16);
 
-  // vgmstream-style: history resets per BLOCK, NOT per frame
   let frameInBlock = 0;
 
   for (let f = 0; f < frames; f++){
 
     const base = f * SPB;
 
-    // fill frame
     for (let s = 0; s < SPB; s++){
-      const idx = base + s;
-      pcmInOut[s + 2] = (idx >= 0 && idx < pcm.length) ? pcm[idx] : 0;
+      const i = base + s;
+      pcmInOut[s + 2] = (i < pcm.length && i >= 0) ? pcm[i] : 0;
     }
 
-    const adpcm = dspEncodeFrame(pcmInOut, Math.min(14, pcm.length - base), coefs);
+    const adpcm = dspEncodeFrame(pcmInOut, Math.min(SPB, pcm.length - base), coefs);
 
-    out.set(adpcm, f * BPB);
+    out.set(adpcm, f * 8);
 
     // ─────────────────────────────────────────────
-    // vgmstream FIX: block-based history reset
+    //  fix from vgmstream
     // ─────────────────────────────────────────────
     frameInBlock++;
 
-    if (frameInBlock >= interleave / SPB){
-      frameInBlock = 0;
+    if (frameInBlock >= FRAMES_PER_BLOCK){
 
-      // RESET DSP history (CRITICAL v5 requirement)
+      // RESET DSP STATE EXACTLY LIKE vgmstream MADP
       pcmInOut[0] = 0;
       pcmInOut[1] = 0;
+
+      frameInBlock = 0;
     } else {
-      // normal history carry (only inside block)
       pcmInOut[0] = pcmInOut[SPB];
       pcmInOut[1] = pcmInOut[SPB + 1];
     }
