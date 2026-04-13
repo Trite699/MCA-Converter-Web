@@ -300,33 +300,85 @@ function parseWAVHeader(buf){
 // WAV → MCA ENCODER
 // ══════════════════════════════════════════════════════════════════════════════
 function wavToMca(buf,loopStart=0,loopEnd=0,version=4){
-  const{channels,sampleRate,numSamples,dataOffset,dataSize}=parseWAVHeader(buf);
+  const {channels,sampleRate,numSamples,dataOffset,dataSize}=parseWAVHeader(buf);
+
   const pcm=new Int16Array(buf.buffer,buf.byteOffset+dataOffset,dataSize>>1);
+
   const INTERLEAVE=0x100,SPB=14,fpB=Math.floor(INTERLEAVE/8),CS=0x30,FIXED_HDR=0x30;
+
+  const blockFrames = INTERLEAVE / fpB; // 14-sample frames per block (8)
+
+  // ─────────────────────────────────────────────
+  // vgmstream-style LOOP FIX (v5 correct)
+  // ─────────────────────────────────────────────
+  function alignToBlock(x){
+    return Math.floor(x / (SPB * blockFrames)) * (SPB * blockFrames);
+  }
+
+  if(loopEnd <= loopStart){
+    loopStart = 0;
+    loopEnd = 0;
+  } else {
+    loopStart = alignToBlock(loopStart);
+    loopEnd   = alignToBlock(loopEnd);
+  }
+
   const chEnc=[],coefs=[];
+
   for(let ch=0;ch<channels;ch++){
     const mono=new Int16Array(numSamples);
-    for(let s=0;s<numSamples;s++)mono[s]=pcm[s*channels+ch];
+    for(let s=0;s<numSamples;s++) mono[s]=pcm[s*channels+ch];
+
     const c=dspCorrelateCoefs(mono);
-    coefs.push(c);chEnc.push(encodeMono(mono,c));
+    coefs.push(c);
+
+    chEnc.push(encodeMono(mono,c));
   }
+
   const totalBlocks=Math.ceil(Math.ceil(numSamples/SPB)/fpB);
   const audioBytes=totalBlocks*channels*INTERLEAVE;
   const headSize=FIXED_HDR+channels*CS;
+
   const out=new Uint8Array(headSize+audioBytes);
   const dv=new DataView(out.buffer);
+
   out[0]=0x4D;out[1]=0x41;out[2]=0x44;out[3]=0x50;
-  dv.setUint16(0x04,version,true);dv.setUint8(0x08,channels);dv.setUint16(0x0A,INTERLEAVE,true);
-  dv.setUint32(0x0C,numSamples,true);dv.setUint16(0x10,sampleRate,true);
-  dv.setUint32(0x14,loopStart,true);dv.setUint32(0x18,loopEnd,true);
-  if(version<=3){dv.setUint32(0x20,audioBytes,true);}
-  else{dv.setUint16(0x1C,headSize,true);dv.setUint32(0x20,audioBytes,true);dv.setUint16(0x28,0,true);}
-  for(let ch=0;ch<channels;ch++){const cOff=FIXED_HDR+ch*CS;for(let i=0;i<16;i++)dv.setInt16(cOff+i*2,coefs[ch][i],true);}
-  for(let b=0;b<totalBlocks;b++)
+
+  dv.setUint16(0x04,version,true);
+  dv.setUint8(0x08,channels);
+  dv.setUint16(0x0A,INTERLEAVE,true);
+
+  dv.setUint32(0x0C,numSamples,true);
+  dv.setUint16(0x10,sampleRate,true);
+
+  // ─────────────────────────────────────────────
+  // FIXED LOOP WRITE
+  // ─────────────────────────────────────────────
+  dv.setUint32(0x14,loopStart,true);
+  dv.setUint32(0x18,loopEnd,true);
+
+  if(version<=3){
+    dv.setUint32(0x20,audioBytes,true);
+  } else {
+    dv.setUint16(0x1C,headSize,true);
+    dv.setUint32(0x20,audioBytes,true);
+    dv.setUint16(0x28,0,true);
+  }
+
+  for(let ch=0;ch<channels;ch++){
+    const cOff=FIXED_HDR+ch*CS;
+    for(let i=0;i<16;i++){
+      dv.setInt16(cOff+i*2,coefs[ch][i],true);
+    }
+  }
+
+  for(let b=0;b<totalBlocks;b++){
     for(let ch=0;ch<channels;ch++){
       const src=chEnc[ch].slice(b*INTERLEAVE,(b+1)*INTERLEAVE);
-      out.set(src,headSize+(b*channels+ch)*INTERLEAVE);
+      out.set(src, headSize + (b*channels + ch) * INTERLEAVE);
     }
+  }
+
   return out;
 }
 
@@ -509,23 +561,48 @@ function dspEncodeFrame(pcmInOut,sampleCount,coefsFlat){
 // ══════════════════════════════════════════════════════════════════════════════
 // MONO ENCODER — feeds DSPEncodeFrame frame by frame
 // ══════════════════════════════════════════════════════════════════════════════
-function encodeMono(pcm,coefs){
-  const SPB=14,BPB=8,frames=Math.ceil(pcm.length/SPB);
-  const out=new Uint8Array(frames*BPB);
-  // pcmInOut layout: [hist2=index0, hist1=index1, samples=index2..15]
-  const pcmInOut=new Int32Array(16);
-  for(let f=0;f<frames;f++){
-    const base=f*SPB,count=Math.min(SPB,pcm.length-base);
-    for(let s=0;s<count;s++)pcmInOut[s+2]=pcm[base+s];
-    for(let s=count;s<SPB;s++)pcmInOut[s+2]=0;
-    const adpcm=dspEncodeFrame(pcmInOut,count,coefs);
-    out.set(adpcm,f*BPB);
-    // Roll history: hist2 <- decoded[SPB-2], hist1 <- decoded[SPB-1]
-    // After DSPEncodeFrame, pcmInOut[2..SPB+1] holds reconstructed samples.
-    // We need the last two as the next frame's history.
-    pcmInOut[0]=pcmInOut[SPB];    // hist2
-    pcmInOut[1]=pcmInOut[SPB+1];  // hist1
+function encodeMono(pcm, coefs, interleave = 0x100){
+  const SPB = 14, BPB = 8;
+  const frames = Math.ceil(pcm.length / SPB);
+  const out = new Uint8Array(frames * BPB);
+
+  const pcmInOut = new Int32Array(16);
+
+  // vgmstream-style: history resets per BLOCK, NOT per frame
+  let frameInBlock = 0;
+
+  for (let f = 0; f < frames; f++){
+
+    const base = f * SPB;
+
+    // fill frame
+    for (let s = 0; s < SPB; s++){
+      const idx = base + s;
+      pcmInOut[s + 2] = (idx >= 0 && idx < pcm.length) ? pcm[idx] : 0;
+    }
+
+    const adpcm = dspEncodeFrame(pcmInOut, Math.min(14, pcm.length - base), coefs);
+
+    out.set(adpcm, f * BPB);
+
+    // ─────────────────────────────────────────────
+    // vgmstream FIX: block-based history reset
+    // ─────────────────────────────────────────────
+    frameInBlock++;
+
+    if (frameInBlock >= interleave / SPB){
+      frameInBlock = 0;
+
+      // RESET DSP history (CRITICAL v5 requirement)
+      pcmInOut[0] = 0;
+      pcmInOut[1] = 0;
+    } else {
+      // normal history carry (only inside block)
+      pcmInOut[0] = pcmInOut[SPB];
+      pcmInOut[1] = pcmInOut[SPB + 1];
+    }
   }
+
   return out;
 }
 </script>
