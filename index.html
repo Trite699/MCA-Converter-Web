@@ -477,8 +477,9 @@ function dspEncodeFrame(pcmInOut,sampleCount,coefsFlat){
     }
     scale[i]=0;while(scale[i]<=12&&(distance>7||distance<-8)){scale[i]++;distance=distance/2|0;}
     scale[i]=scale[i]<=1?-1:scale[i]-2;
+    let index=0;
     do{
-      scale[i]++;dist[i]=0;let index=0;
+      scale[i]++;dist[i]=0;index=0;
       for(let s=0;s<sampleCount;s++){
         const v1=(inS[i][s]*c1)+(inS[i][s+1]*c0);
         const v2=((pcmInOut[s+2]<<11)-v1)/2048|0;
