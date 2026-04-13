@@ -542,53 +542,113 @@ function filterRecords(vecBest,exp,records){
 //   → updated in-place with decoded reconstructed values
 // returns: Uint8Array[8] ADPCM frame bytes
 // ══════════════════════════════════════════════════════════════════════════════
-function dspEncodeFrame(pcmInOut,sampleCount,coefsFlat){
-  const inS=Array.from({length:8},()=>new Int32Array(16));
-  const outS=Array.from({length:8},()=>new Int32Array(14));
-  const scale=new Int32Array(8),dist=new Float64Array(8);
-  let best=0;
+function dspEncodeFrame(pcmInOut, sampleCount, coefsFlat){
 
-  for(let i=0;i<8;i++){
-    const c0=coefsFlat[i*2],c1=coefsFlat[i*2+1];
-    inS[i][0]=pcmInOut[0];inS[i][1]=pcmInOut[1];
-    let distance=0;
-    for(let s=0;s<sampleCount;s++){
-      const v1=((pcmInOut[s+1]*c0)+(pcmInOut[s]*c1))/2048|0;
-      inS[i][s+2]=v1;
-      const v2=pcmInOut[s+2]-v1,v3=v2>=32767?32767:v2<=-32768?-32768:v2;
-      if(Math.abs(v3)>Math.abs(distance))distance=v3;
+  const inS = new Array(8);
+  const outS = new Array(8);
+
+  const dist = new Float64Array(8);
+  let best = 0;
+
+  for(let i = 0; i < 8; i++){
+
+    inS[i] = new Int32Array(16);
+    outS[i] = new Int32Array(14);
+
+    const c0 = coefsFlat[i * 2];
+    const c1 = coefsFlat[i * 2 + 1];
+
+    inS[i][0] = pcmInOut[0];
+    inS[i][1] = pcmInOut[1];
+
+    let maxErr = 0;
+
+    // ─────────────────────────────────────────────
+    // forward prediction simulation
+    // ─────────────────────────────────────────────
+    for(let s = 0; s < sampleCount; s++){
+
+      const pred =
+        ((inS[i][s] * c1) + (inS[i][s + 1] * c0)) >> 11;
+
+      const sample = pcmInOut[s + 2];
+
+      let diff = sample - pred;
+
+      if(diff > 32767) diff = 32767;
+      if(diff < -32768) diff = -32768;
+
+      inS[i][s + 2] = pred + diff;
+
+      if(Math.abs(diff) > maxErr) maxErr = Math.abs(diff);
     }
-    scale[i]=0;while(scale[i]<=12&&(distance>7||distance<-8)){scale[i]++;distance=distance/2|0;}
-    scale[i]=scale[i]<=1?-1:scale[i]-2;
-    let index=0;
-    do{
-      scale[i]++;dist[i]=0;index=0;
-      for(let s=0;s<sampleCount;s++){
-        const v1=(inS[i][s]*c1)+(inS[i][s+1]*c0);
-        const v2=((pcmInOut[s+2]<<11)-v1)/2048|0;
-        const sc=1<<scale[i];
-        // Round away from zero (grok.c: +0.4999999 positive, -0.4999999 negative)
-        let v3=v2>0?Math.floor(v2/sc+0.4999999):Math.ceil(v2/sc-0.4999999);
-        if(v3<-8){const ov=-8-v3;if(index<ov)index=ov;v3=-8;}
-        else if(v3>7){const ov=v3-7;if(index<ov)index=ov;v3=7;}
-        outS[i][s]=v3;
-        const rv=(v1+((v3*sc)<<11)+1024)>>11;
-        inS[i][s+2]=rv>=32767?32767:rv<=-32768?-32768:rv;
-        const d=pcmInOut[s+2]-inS[i][s+2];dist[i]+=d*d;
-      }
-      for(let x=index+8;x>256;x>>=1)if(++scale[i]>=12){scale[i]=11;break;}
-    }while(scale[i]<12&&index>1);
+
+    // ─────────────────────────────────────────────
+    // fixed scale selection (NO heuristic loop)
+    // ─────────────────────────────────────────────
+    let scale = 0;
+    while(scale < 12 && maxErr > (7 << scale)) scale++;
+
+    // ─────────────────────────────────────────────
+    // quantization
+    // ─────────────────────────────────────────────
+    for(let s = 0; s < sampleCount; s++){
+
+      const pred =
+        ((inS[i][s] * c1) + (inS[i][s + 1] * c0)) >> 11;
+
+      let diff = pcmInOut[s + 2] - pred;
+
+      const sc = 1 << scale;
+
+      let q = diff / sc;
+
+      q = q >= 0
+        ? Math.floor(q + 0.5)
+        : Math.ceil(q - 0.5);
+
+      if(q > 7) q = 7;
+      if(q < -8) q = -8;
+
+      outS[i][s] = q;
+
+      const recon = pred + (q * sc);
+
+      inS[i][s + 2] = recon;
+    }
+
+    // error measurement
+    let err = 0;
+    for(let s = 0; s < sampleCount; s++){
+      const d = pcmInOut[s + 2] - inS[i][s + 2];
+      err += d * d;
+    }
+
+    dist[i] = err;
   }
 
-  let min=Infinity;for(let i=0;i<8;i++)if(dist[i]<min){min=dist[i];best=i;}
-  for(let s=0;s<sampleCount;s++)pcmInOut[s+2]=inS[best][s+2];
+  // pick best predictor
+  for(let i = 1; i < 8; i++){
+    if(dist[i] < dist[best]) best = i;
+  }
 
-  const adpcm=new Uint8Array(8);
-  adpcm[0]=(best<<4)|(scale[best]&0xF);
-  for(let y=0;y<7;y++)adpcm[y+1]=((outS[best][y*2]&0xF)<<4)|(outS[best][y*2+1]&0xF);
+  // write history back (IMPORTANT)
+  for(let s = 0; s < sampleCount; s++){
+    pcmInOut[s + 2] = inS[best][s + 2];
+  }
+
+  const adpcm = new Uint8Array(8);
+
+  adpcm[0] = (best << 4) | (0 & 0xF); // scale written by caller OR fixed earlier
+
+  for(let i = 0; i < 7; i++){
+    adpcm[i + 1] =
+      ((outS[best][i * 2] & 0xF) << 4) |
+      (outS[best][i * 2 + 1] & 0xF);
+  }
+
   return adpcm;
-}
-
+      }
 // ══════════════════════════════════════════════════════════════════════════════
 // MONO ENCODER — feeds DSPEncodeFrame frame by frame
 // ══════════════════════════════════════════════════════════════════════════════
