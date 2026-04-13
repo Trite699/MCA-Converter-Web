@@ -300,117 +300,34 @@ function parseWAVHeader(buf){
 // WAV → MCA ENCODER
 // ══════════════════════════════════════════════════════════════════════════════
 function wavToMca(buf,loopStart=0,loopEnd=0,version=4){
-  const {channels,sampleRate,numSamples,dataOffset,dataSize}=parseWAVHeader(buf);
-
+  const{channels,sampleRate,numSamples,dataOffset,dataSize}=parseWAVHeader(buf);
   const pcm=new Int16Array(buf.buffer,buf.byteOffset+dataOffset,dataSize>>1);
-
   const INTERLEAVE=0x100,SPB=14,fpB=Math.floor(INTERLEAVE/8),CS=0x30,FIXED_HDR=0x30;
-
-  const blockFrames = INTERLEAVE / fpB; // 14-sample frames per block (8)
-
-  // ─────────────────────────────────────────────
-  // vgmstream-style LOOP FIX (v5 correct)
-  // ─────────────────────────────────────────────
-  function alignToBlock(x){
-    return Math.floor(x / (SPB * blockFrames)) * (SPB * blockFrames);
-  }
-
-  if(loopEnd <= loopStart){
-    loopStart = 0;
-    loopEnd = 0;
-  } else {
-    loopStart = alignToBlock(loopStart);
-    loopEnd   = alignToBlock(loopEnd);
-  }
-
   const chEnc=[],coefs=[];
-
   for(let ch=0;ch<channels;ch++){
     const mono=new Int16Array(numSamples);
-    for(let s=0;s<numSamples;s++) mono[s]=pcm[s*channels+ch];
-
+    for(let s=0;s<numSamples;s++)mono[s]=pcm[s*channels+ch];
     const c=dspCorrelateCoefs(mono);
-    coefs.push(c);
-
-    chEnc.push(encodeMono(mono,c));
+    coefs.push(c);chEnc.push(encodeMono(mono,c));
   }
-
   const totalBlocks=Math.ceil(Math.ceil(numSamples/SPB)/fpB);
   const audioBytes=totalBlocks*channels*INTERLEAVE;
   const headSize=FIXED_HDR+channels*CS;
-
   const out=new Uint8Array(headSize+audioBytes);
   const dv=new DataView(out.buffer);
-
   out[0]=0x4D;out[1]=0x41;out[2]=0x44;out[3]=0x50;
-
-  dv.setUint16(0x04,version,true);
-  dv.setUint8(0x08,channels);
-  dv.setUint16(0x0A,INTERLEAVE,true);
-
-  dv.setUint32(0x0C,numSamples,true);
-  dv.setUint16(0x10,sampleRate,true);
-
- // ─────────────────────────────────────────────
-// FIXED LOOP WRITE (v5-safe)
-// ─────────────────────────────────────────────
-
-// safety clamp (IMPORTANT)
-loopStart = Math.max(0, Math.min(loopStart, numSamples));
-loopEnd   = Math.max(0, Math.min(loopEnd, numSamples));
-
-// ensure valid loop ordering
-if(loopEnd <= loopStart){
-  loopStart = 0;
-  loopEnd = 0;
-}
-
-// ─────────────────────────────────────────────
-// write loop
-// ─────────────────────────────────────────────
-dv.setUint32(0x14, loopStart, true);
-dv.setUint32(0x18, loopEnd, true);
-
-// ─────────────────────────────────────────────
-// header section
-// ─────────────────────────────────────────────
-if(version <= 3){
-  dv.setUint32(0x20, audioBytes, true);
-} else {
-  dv.setUint16(0x1C, headSize, true);
-  dv.setUint32(0x20, audioBytes, true);
-  dv.setUint16(0x28, 0, true);
-}
-
-// ─────────────────────────────────────────────
-// coefficients
-// ─────────────────────────────────────────────
-for(let ch = 0; ch < channels; ch++){
-  const cOff = FIXED_HDR + ch * CS;
-  for(let i = 0; i < 16; i++){
-    dv.setInt16(cOff + i * 2, coefs[ch][i], true);
-  }
-}
-
-// ─────────────────────────────────────────────
-// data write (UNCHANGED but safer indexing)
-// ─────────────────────────────────────────────
-for(let b = 0; b < totalBlocks; b++){
-  for(let ch = 0; ch < channels; ch++){
-
-    const src = chEnc[ch].subarray(
-      b * INTERLEAVE,
-      (b + 1) * INTERLEAVE
-    );
-
-    out.set(
-      src,
-      headSize + (b * channels + ch) * INTERLEAVE
-    );
-  }
-}
-
-return out;
+  dv.setUint16(0x04,version,true);dv.setUint8(0x08,channels);dv.setUint16(0x0A,INTERLEAVE,true);
+  dv.setUint32(0x0C,numSamples,true);dv.setUint16(0x10,sampleRate,true);
+  dv.setUint32(0x14,loopStart,true);dv.setUint32(0x18,loopEnd,true);
+  if(version<=3){dv.setUint32(0x20,audioBytes,true);}
+  else{dv.setUint16(0x1C,headSize,true);dv.setUint32(0x20,audioBytes,true);dv.setUint16(0x28,0,true);}
+  for(let ch=0;ch<channels;ch++){const cOff=FIXED_HDR+ch*CS;for(let i=0;i<16;i++)dv.setInt16(cOff+i*2,coefs[ch][i],true);}
+  for(let b=0;b<totalBlocks;b++)
+    for(let ch=0;ch<channels;ch++){
+      const src=chEnc[ch].slice(b*INTERLEAVE,(b+1)*INTERLEAVE);
+      out.set(src,headSize+(b*channels+ch)*INTERLEAVE);
+    }
+  return out;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -542,158 +459,73 @@ function filterRecords(vecBest,exp,records){
 //   → updated in-place with decoded reconstructed values
 // returns: Uint8Array[8] ADPCM frame bytes
 // ══════════════════════════════════════════════════════════════════════════════
-function dspEncodeFrame(pcmInOut, sampleCount, coefsFlat){
+function dspEncodeFrame(pcmInOut,sampleCount,coefsFlat){
+  const inS=Array.from({length:8},()=>new Int32Array(16));
+  const outS=Array.from({length:8},()=>new Int32Array(14));
+  const scale=new Int32Array(8),dist=new Float64Array(8);
+  let best=0;
 
-  const inS = new Array(8);
-  const outS = new Array(8);
-
-  const dist = new Float64Array(8);
-  let best = 0;
-  let bestScale = 0;
-
-  for(let i = 0; i < 8; i++){
-
-    inS[i] = new Int32Array(16);
-    outS[i] = new Int8Array(14);
-
-    const c0 = coefsFlat[i * 2];
-    const c1 = coefsFlat[i * 2 + 1];
-
-    inS[i][0] = pcmInOut[0];
-    inS[i][1] = pcmInOut[1];
-
-    let maxErr = 0;
-
-    for(let s = 0; s < sampleCount; s++){
-
-      const pred =
-        ((inS[i][s] * c1) + (inS[i][s + 1] * c0)) >> 11;
-
-      let diff = pcmInOut[s + 2] - pred;
-
-      if(diff > 32767) diff = 32767;
-      if(diff < -32768) diff = -32768;
-
-      inS[i][s + 2] = pred + diff;
-
-      if(Math.abs(diff) > maxErr) maxErr = Math.abs(diff);
+  for(let i=0;i<8;i++){
+    const c0=coefsFlat[i*2],c1=coefsFlat[i*2+1];
+    inS[i][0]=pcmInOut[0];inS[i][1]=pcmInOut[1];
+    let distance=0;
+    for(let s=0;s<sampleCount;s++){
+      const v1=((pcmInOut[s+1]*c0)+(pcmInOut[s]*c1))/2048|0;
+      inS[i][s+2]=v1;
+      const v2=pcmInOut[s+2]-v1,v3=v2>=32767?32767:v2<=-32768?-32768:v2;
+      if(Math.abs(v3)>Math.abs(distance))distance=v3;
     }
-
-    // FIXED scale selection
-    let scale = 0;
-    while(scale < 12 && maxErr > (7 << scale)) scale++;
-
-    bestScale = scale;
-
-    let err = 0;
-
-    for(let s = 0; s < sampleCount; s++){
-
-      const pred =
-        ((inS[i][s] * c1) + (inS[i][s + 1] * c0)) >> 11;
-
-      let diff = pcmInOut[s + 2] - pred;
-
-      const sc = 1 << scale;
-
-      let q = diff / sc;
-
-      q = q >= 0
-        ? Math.floor(q + 0.5)
-        : Math.ceil(q - 0.5);
-
-      if(q > 7) q = 7;
-      if(q < -8) q = -8;
-
-      outS[i][s] = q;
-
-      const recon = pred + (q * sc);
-      inS[i][s + 2] = recon;
-
-      const d = pcmInOut[s + 2] - recon;
-      err += d * d;
-    }
-
-    dist[i] = err;
+    scale[i]=0;while(scale[i]<=12&&(distance>7||distance<-8)){scale[i]++;distance=distance/2|0;}
+    scale[i]=scale[i]<=1?-1:scale[i]-2;
+    let index=0;
+    do{
+      scale[i]++;dist[i]=0;index=0;
+      for(let s=0;s<sampleCount;s++){
+        const v1=(inS[i][s]*c1)+(inS[i][s+1]*c0);
+        const v2=((pcmInOut[s+2]<<11)-v1)/2048|0;
+        const sc=1<<scale[i];
+        // Round away from zero (grok.c: +0.4999999 positive, -0.4999999 negative)
+        let v3=v2>0?Math.floor(v2/sc+0.4999999):Math.ceil(v2/sc-0.4999999);
+        if(v3<-8){const ov=-8-v3;if(index<ov)index=ov;v3=-8;}
+        else if(v3>7){const ov=v3-7;if(index<ov)index=ov;v3=7;}
+        outS[i][s]=v3;
+        const rv=(v1+((v3*sc)<<11)+1024)>>11;
+        inS[i][s+2]=rv>=32767?32767:rv<=-32768?-32768:rv;
+        const d=pcmInOut[s+2]-inS[i][s+2];dist[i]+=d*d;
+      }
+      for(let x=index+8;x>256;x>>=1)if(++scale[i]>=12){scale[i]=11;break;}
+    }while(scale[i]<12&&index>1);
   }
 
-  // pick best predictor
-  for(let i = 1; i < 8; i++){
-    if(dist[i] < dist[best]) best = i;
-  }
+  let min=Infinity;for(let i=0;i<8;i++)if(dist[i]<min){min=dist[i];best=i;}
+  for(let s=0;s<sampleCount;s++)pcmInOut[s+2]=inS[best][s+2];
 
-  // restore history
-  for(let s = 0; s < sampleCount; s++){
-    pcmInOut[s + 2] = inS[best][s + 2];
-  }
-
-  const adpcm = new Uint8Array(8);
-
-  // IMPORTANT: correct scale write
-  adpcm[0] = (best << 4) | (bestScale & 0xF);
-
-  for(let i = 0; i < 7; i++){
-    const n1 = outS[best][i * 2];
-    const n2 = outS[best][i * 2 + 1];
-
-    // SIGN-PRESERVING PACKING (CRITICAL FIX)
-    adpcm[i + 1] =
-      ((n1 & 0xF) << 4) |
-      (n2 & 0xF);
-  }
-
+  const adpcm=new Uint8Array(8);
+  adpcm[0]=(best<<4)|(scale[best]&0xF);
+  for(let y=0;y<7;y++)adpcm[y+1]=((outS[best][y*2]&0xF)<<4)|(outS[best][y*2+1]&0xF);
   return adpcm;
 }
+
 // ══════════════════════════════════════════════════════════════════════════════
 // MONO ENCODER — feeds DSPEncodeFrame frame by frame
 // ══════════════════════════════════════════════════════════════════════════════
-function encodeMono(pcm, coefs){
-  const SPB = 14;
-  const BPB = 8;
-  const frames = Math.ceil(pcm.length / SPB);
-
-  const out = new Uint8Array(frames * BPB);
-
-  // true DSP history state
-  let hist1 = 0;
-  let hist2 = 0;
-
-  const inbuf = new Int32Array(16);
-  const outbuf = new Int32Array(16);
-
-  for(let f = 0; f < frames; f++){
-
-    const base = f * SPB;
-
-    // fill input samples
-    for(let s = 0; s < SPB; s++){
-      const i = base + s;
-      inbuf[s + 2] = (i < pcm.length) ? pcm[i] : 0;
-    }
-
-    // inject correct predictor history
-    inbuf[0] = hist2;
-    inbuf[1] = hist1;
-
-    // encode frame
-    const adpcm = dspEncodeFrame(
-      inbuf,
-      Math.min(SPB, pcm.length - base),
-      coefs
-    );
-
-    out.set(adpcm, f * BPB);
-
-    // ─────────────────────────────────────────────
-    // FIX: DO NOT read from input buffer
-    // simulate correct DSP history update instead
-    // ─────────────────────────────────────────────
-
-    // reconstruct safe history update
-    hist2 = inbuf[SPB];
-    hist1 = inbuf[SPB + 1];
+function encodeMono(pcm,coefs){
+  const SPB=14,BPB=8,frames=Math.ceil(pcm.length/SPB);
+  const out=new Uint8Array(frames*BPB);
+  // pcmInOut layout: [hist2=index0, hist1=index1, samples=index2..15]
+  const pcmInOut=new Int32Array(16);
+  for(let f=0;f<frames;f++){
+    const base=f*SPB,count=Math.min(SPB,pcm.length-base);
+    for(let s=0;s<count;s++)pcmInOut[s+2]=pcm[base+s];
+    for(let s=count;s<SPB;s++)pcmInOut[s+2]=0;
+    const adpcm=dspEncodeFrame(pcmInOut,count,coefs);
+    out.set(adpcm,f*BPB);
+    // Roll history: hist2 <- decoded[SPB-2], hist1 <- decoded[SPB-1]
+    // After DSPEncodeFrame, pcmInOut[2..SPB+1] holds reconstructed samples.
+    // We need the last two as the next frame's history.
+    pcmInOut[0]=pcmInOut[SPB];    // hist2
+    pcmInOut[1]=pcmInOut[SPB+1];  // hist1
   }
-
   return out;
 }
 </script>
