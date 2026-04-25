@@ -272,14 +272,28 @@ function parseMCAHeader(buf){
     headSize    = len - dataSize;
     coefShift   = 0;
     startOffset = headSize;
-  } else {
-    // v4+: explicit head_size and coef_shift
+  } else if(version === 4){
+    // v4: explicit head_size and coef_shift; start_offset = file_size - data_size
     headSize    = dv.getUint16(0x1C,true);
     coefShift   = dv.getUint16(0x28,true);
     startOffset = len - dataSize;  // "usually head_size but not for some MH3U songs"
+  } else {
+    // v5+ (AA6, MH4U, MH Generations, etc.):
+    // head_size and coef_shift same as v4, BUT start_offset is stored
+    // explicitly as a u32 at (coef_start - 4), NOT derived from file_size.
+    headSize  = dv.getUint16(0x1C,true);
+    coefShift = dv.getUint16(0x28,true);
+    const coefStartTmp = headSize - CS*channels;
+    startOffset = dv.getUint32(coefStartTmp - 0x4, true);
+    // Sanity fallback: if the stored offset is bogus, try file_size - data_size
+    if(startOffset + dataSize > len){
+      const fallback = len - dataSize;
+      if(fallback + dataSize <= len) startOffset = fallback;
+      else throw new Error("v5 start_offset out of range: "+hex(startOffset));
+    }
   }
 
-  // coef_start = head_size - CS*channels  (end of fixed header region before coef blocks)
+  // coef_start = head_size - CS*channels
   // coef_offset = coef_start + coef_shift*0x14
   const coefStart  = headSize - CS*channels;
   const coefOffset = coefStart + coefShift*0x14;
