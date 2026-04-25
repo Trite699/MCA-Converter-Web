@@ -520,11 +520,21 @@ function wavToMca(buf, loopStart=0, loopEnd=0, version=4){
   if(version<=3){
     // v3: data_size at 0x20, no explicit headSize/coefShift fields
     dv.setUint32(0x20, audioBytes, true);
-  } else {
-    // v4/v5: headSize at 0x1C, dataSize at 0x20, coefShift=0 at 0x28
+  } else if(version === 4){
+    // v4: headSize at 0x1C, dataSize at 0x20, coefShift=0 at 0x28
     dv.setUint16(0x1C, headSize,   true);
     dv.setUint32(0x20, audioBytes, true);
     dv.setUint16(0x28, 0,          true);
+  } else {
+    // v5+: same header fields as v4, PLUS audio start offset stored as a
+    // u32 at (coef_start - 4).  coef_start = head_size - CS*channels = FIXED_HDR,
+    // so the slot is at FIXED_HDR - 4 = 0x2C.
+    // Audio immediately follows the header, so audioStart = headSize.
+    const audioStart = headSize;
+    dv.setUint16(0x1C, headSize,   true);
+    dv.setUint32(0x20, audioBytes, true);
+    dv.setUint16(0x28, 0,          true);
+    dv.setUint32(FIXED_HDR - 4, audioStart, true); // 0x2C = coef_start - 4
   }
 
   // Write coef blocks starting at FIXED_HDR (0x30)
@@ -600,17 +610,20 @@ function dspCorrelateCoefs(pcm){
   for(let y=1;y<=2;y++) avg[y] /= records.length;
   mergeFinishRecord(avg, vecBest[0]);
 
-  // K-means style clustering: double clusters three times (1→2→4→8)
+  // K-means style clustering: three splitting passes 1→2→4→8
+  // Each pass: split all current centroids, then re-cluster records.
+  // exp tracks current cluster count. After 3 splits: 1→2→4→8.
   let exp = 1;
   for(let w=0;w<3;w++){
-    // Split each existing centroid
+    // Split each existing centroid by offsetting with a small perturbation
     const vec2 = new Float64Array([0.0,-1.0,0.0]);
     for(let i=0;i<exp;i++){
       for(let y=0;y<=2;y++) vecBest[exp+i][y] = 0.01*vec2[y] + vecBest[i][y];
     }
-    exp = 1 << (++w);  // 1→2→4→8
+    exp <<= 1;  // double: 1→2→4→8
     filterRecords(vecBest, exp, records);
   }
+  // Final refinement pass over all 8 clusters
   filterRecords(vecBest, 8, records);
 
   // Convert float predictors back to Q11 int16 coefs
@@ -806,10 +819,11 @@ function dspEncodeFrame(pcmInOut, sampleCount, coefsFlat){
     inS[i][0] = pcmInOut[0];
     inS[i][1] = pcmInOut[1];
 
-    // Find max deviation of raw prediction error (used to set initial scale)
+    // Find max deviation of raw prediction error (used to set initial scale).
+    // Use inS[i] running buffer so history propagates correctly through the frame.
     let distance=0;
     for(let s=0;s<sampleCount;s++){
-      const pred = ((pcmInOut[s+1]*c0) + (pcmInOut[s]*c1)) / 2048 | 0;
+      const pred = ((inS[i][s+1]*c0) + (inS[i][s]*c1)) / 2048 | 0;
       inS[i][s+2] = pred;
       const err = pcmInOut[s+2] - pred;
       const clamped = err>32767?32767 : err<-32768?-32768 : err;
@@ -834,8 +848,9 @@ function dspEncodeFrame(pcmInOut, sampleCount, coefsFlat){
       for(let s=0;s<sampleCount;s++){
         // Predict
         const pred = (inS[i][s]*c1) + (inS[i][s+1]*c0);
-        // Error in Q11
-        const errQ11 = ((pcmInOut[s+2]<<11) - pred) / 2048 | 0;
+        // Error in Q11: pred is already in the *2048 domain (not yet divided),
+        // so the raw error before quantization is simply (target<<11) - pred.
+        const errQ11 = ((pcmInOut[s+2]<<11) - pred) | 0;
         const sc = 1 << scale[i];
 
         // Round away from zero (grok.c uses +/- 0.4999999)
