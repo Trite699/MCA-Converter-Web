@@ -1,1424 +1,917 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AA:SOJ .gui Viewer</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCA ↔ WAV Converter</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
-
-  :root {
-    --bg: #0a0c10;
-    --panel: #0f1318;
-    --border: #1e2d40;
-    --accent: #00d4ff;
-    --accent2: #ff6b35;
-    --accent3: #7fff7f;
-    --text: #c8d8e8;
-    --dim: #4a6070;
-    --glow: 0 0 12px rgba(0,212,255,0.4);
-    --font-mono: 'Share Tech Mono', monospace;
-    --font-display: 'Orbitron', sans-serif;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-mono);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow-x: hidden;
-  }
-
-  /* Scanline overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: repeating-linear-gradient(
-      to bottom,
-      transparent 0px,
-      transparent 2px,
-      rgba(0,0,0,0.08) 2px,
-      rgba(0,0,0,0.08) 4px
-    );
-    pointer-events: none;
-    z-index: 9999;
-  }
-
-  header {
-    border-bottom: 1px solid var(--border);
-    padding: 14px 24px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    background: linear-gradient(90deg, #0f1318 0%, #0a1520 100%);
-  }
-
-  .logo {
-    font-family: var(--font-display);
-    font-size: 13px;
-    font-weight: 900;
-    color: var(--accent);
-    letter-spacing: 2px;
-    text-shadow: var(--glow);
-  }
-
-  .logo span { color: var(--accent2); }
-
-  .subtitle {
-    font-size: 10px;
-    color: var(--dim);
-    letter-spacing: 1px;
-    margin-left: auto;
-  }
-
-  .main {
-    display: grid;
-    grid-template-columns: 300px 1fr;
-    flex: 1;
-    min-height: 0;
-  }
-
-  /* Sidebar */
-  .sidebar {
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .drop-zone {
-    margin: 16px;
-    border: 1px dashed var(--accent);
-    border-radius: 4px;
-    padding: 24px 16px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: rgba(0,212,255,0.03);
-    position: relative;
-    overflow: hidden;
-  }
-
-  .drop-zone:hover, .drop-zone.drag-over {
-    background: rgba(0,212,255,0.08);
-    border-color: var(--accent);
-    box-shadow: var(--glow);
-  }
-
-  .drop-zone input[type=file] {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-    width: 100%;
-    height: 100%;
-  }
-
-  .drop-icon {
-    font-size: 28px;
-    margin-bottom: 8px;
-    display: block;
-  }
-
-  .drop-text {
-    font-size: 11px;
-    color: var(--accent);
-    letter-spacing: 1px;
-    display: block;
-    margin-bottom: 4px;
-  }
-
-  .drop-sub {
-    font-size: 9px;
-    color: var(--dim);
-    letter-spacing: 0.5px;
-  }
-
-  .section-header {
-    padding: 8px 16px;
-    font-size: 9px;
-    letter-spacing: 2px;
-    color: var(--dim);
-    border-bottom: 1px solid var(--border);
-    text-transform: uppercase;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .section-header .count {
-    background: var(--accent);
-    color: var(--bg);
-    font-size: 8px;
-    padding: 1px 5px;
-    border-radius: 2px;
-  }
-
-  .tree {
-    flex: 1;
-    overflow-y: auto;
-    padding: 8px 0;
-  }
-
-  .tree::-webkit-scrollbar { width: 4px; }
-  .tree::-webkit-scrollbar-track { background: transparent; }
-  .tree::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  .tree-node {
-    padding: 6px 16px;
-    font-size: 11px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: background 0.1s;
-    border-left: 2px solid transparent;
-  }
-
-  .tree-node:hover { background: rgba(0,212,255,0.05); }
-  .tree-node.active {
-    background: rgba(0,212,255,0.1);
-    border-left-color: var(--accent);
-    color: var(--accent);
-  }
-
-  .node-icon { font-size: 12px; opacity: 0.7; }
-  .node-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .node-type {
-    font-size: 8px;
-    color: var(--dim);
-    background: var(--border);
-    padding: 1px 4px;
-    border-radius: 2px;
-  }
-
-  .tree-group-header {
-    padding: 10px 16px 4px;
-    font-size: 9px;
-    letter-spacing: 2px;
-    color: var(--accent2);
-    text-transform: uppercase;
-  }
-
-  /* Main content area */
-  .content {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .tabs {
-    display: flex;
-    border-bottom: 1px solid var(--border);
-    background: var(--panel);
-    padding: 0 16px;
-    gap: 0;
-  }
-
-  .tab {
-    padding: 10px 18px;
-    font-size: 10px;
-    letter-spacing: 1px;
-    cursor: pointer;
-    color: var(--dim);
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s;
-    text-transform: uppercase;
-  }
-
-  .tab:hover { color: var(--text); }
-  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-
-  .tab-content {
-    flex: 1;
-    overflow: auto;
-    padding: 20px;
-  }
-
-  .tab-content::-webkit-scrollbar { width: 6px; }
-  .tab-content::-webkit-scrollbar-track { background: transparent; }
-  .tab-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-  /* Panels */
-  .panel-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 16px;
-  }
-
-  .info-panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    overflow: hidden;
-  }
-
-  .info-panel-header {
-    padding: 8px 12px;
-    font-size: 9px;
-    letter-spacing: 2px;
-    color: var(--accent);
-    border-bottom: 1px solid var(--border);
-    text-transform: uppercase;
-    background: rgba(0,212,255,0.05);
-  }
-
-  .info-panel-body { padding: 12px; }
-
-  .kv-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 4px 0;
-    font-size: 11px;
-    border-bottom: 1px solid rgba(30,45,64,0.5);
-  }
-
-  .kv-row:last-child { border-bottom: none; }
-  .kv-key { color: var(--dim); }
-  .kv-val { color: var(--text); font-weight: bold; }
-  .kv-val.highlight { color: var(--accent3); }
-  .kv-val.warn { color: var(--accent2); }
-
-  /* Animation viewer */
-  .anim-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 12px;
-    margin-bottom: 10px;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .anim-card:hover {
-    border-color: var(--accent);
-    box-shadow: var(--glow);
-  }
-
-  .anim-card.playing { border-color: var(--accent3); }
-
-  .anim-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 3px;
-    background: linear-gradient(135deg, #0a1520, #1a2535);
-    border: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    flex-shrink: 0;
-  }
-
-  .anim-info { flex: 1; }
-  .anim-name { font-size: 12px; color: var(--text); margin-bottom: 2px; }
-  .anim-meta { font-size: 10px; color: var(--dim); }
-
-  .play-btn {
-    background: none;
-    border: 1px solid var(--accent);
-    color: var(--accent);
-    padding: 4px 10px;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    cursor: pointer;
-    border-radius: 2px;
-    transition: all 0.2s;
-  }
-
-  .play-btn:hover {
-    background: var(--accent);
-    color: var(--bg);
-  }
-
-  /* Hex viewer */
-  .hex-viewer {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 12px;
-    font-size: 11px;
-    line-height: 1.7;
-    overflow-x: auto;
-  }
-
-  .hex-row {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-  }
-
-  .hex-addr { color: var(--dim); width: 60px; flex-shrink: 0; }
-
-  .hex-bytes {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-    flex: 1;
-  }
-
-  .hex-byte {
-    width: 20px;
-    text-align: center;
-    cursor: pointer;
-    border-radius: 2px;
-    transition: background 0.1s;
-  }
-
-  .hex-byte:hover { background: rgba(0,212,255,0.2); color: var(--accent); }
-  .hex-byte.zero { color: var(--border); }
-  .hex-byte.nonzero { color: var(--text); }
-  .hex-byte.ascii-printable { color: var(--accent3); }
-  .hex-byte.highlighted { background: rgba(0,212,255,0.3); color: var(--accent); }
-
-  .hex-ascii {
-    color: var(--dim);
-    width: 130px;
-    flex-shrink: 0;
-    letter-spacing: 1px;
-  }
-
-  /* Texture info */
-  .texture-ref {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 16px;
-    margin-bottom: 12px;
-  }
-
-  .texture-path {
-    font-size: 11px;
-    color: var(--accent2);
-    word-break: break-all;
-    margin-bottom: 8px;
-    padding: 6px 8px;
-    background: rgba(255,107,53,0.08);
-    border-radius: 3px;
-    border-left: 2px solid var(--accent2);
-  }
-
-  .texture-note {
-    font-size: 10px;
-    color: var(--dim);
-    line-height: 1.6;
-  }
-
-  /* Strings list */
-  .string-chip {
-    display: inline-block;
-    background: rgba(127,255,127,0.06);
-    border: 1px solid rgba(127,255,127,0.2);
-    color: var(--accent3);
-    font-size: 10px;
-    padding: 3px 8px;
-    border-radius: 12px;
-    margin: 3px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .string-chip:hover {
-    background: rgba(127,255,127,0.15);
-    border-color: var(--accent3);
-  }
-
-  /* Toolbar */
-  .toolbar {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    padding: 10px 20px;
-    border-bottom: 1px solid var(--border);
-    background: rgba(15,19,24,0.8);
-  }
-
-  .toolbar-btn {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 5px 12px;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    cursor: pointer;
-    border-radius: 3px;
-    letter-spacing: 0.5px;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .toolbar-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
-  .toolbar-sep { width: 1px; height: 20px; background: var(--border); }
-
-  .status-bar {
-    padding: 5px 16px;
-    font-size: 9px;
-    color: var(--dim);
-    border-top: 1px solid var(--border);
-    display: flex;
-    gap: 16px;
-    letter-spacing: 0.5px;
-  }
-
-  .status-dot {
-    display: inline-block;
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--accent3);
-    margin-right: 5px;
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-
-  /* Welcome screen */
-  .welcome {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    text-align: center;
-    gap: 16px;
-    padding: 40px;
-  }
-
-  .welcome-icon { font-size: 48px; opacity: 0.3; }
-  .welcome-title { font-family: var(--font-display); font-size: 14px; color: var(--dim); letter-spacing: 3px; }
-  .welcome-sub { font-size: 11px; color: var(--dim); opacity: 0.6; max-width: 300px; line-height: 1.6; }
-
-  /* Progress bar */
-  .progress-bar {
-    height: 2px;
-    background: var(--border);
-    border-radius: 1px;
-    overflow: hidden;
-    margin: 8px 0;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    border-radius: 1px;
-    transition: width 0.3s;
-  }
-
-  /* Anim preview canvas */
-  .anim-preview {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 16px;
-    margin-bottom: 16px;
-    display: flex;
-    gap: 16px;
-    align-items: flex-start;
-  }
-
-  .anim-canvas-wrap {
-    width: 200px;
-    height: 150px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    overflow: hidden;
-    flex-shrink: 0;
-    position: relative;
-    background: #050810;
-  }
-
-  canvas#animCanvas {
-    width: 100%;
-    height: 100%;
-  }
-
-  .anim-controls { flex: 1; }
-
-  .ctrl-row {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
-    align-items: center;
-  }
-
-  .ctrl-label { font-size: 10px; color: var(--dim); width: 60px; flex-shrink: 0; }
-
-  .ctrl-slider {
-    flex: 1;
-    -webkit-appearance: none;
-    height: 3px;
-    background: var(--border);
-    border-radius: 1px;
-    outline: none;
-  }
-
-  .ctrl-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--accent);
-    cursor: pointer;
-    box-shadow: 0 0 6px rgba(0,212,255,0.5);
-  }
-
-  .ctrl-val { font-size: 10px; color: var(--accent); width: 30px; text-align: right; }
-
-  .export-btn {
-    background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(0,212,255,0.05));
-    border: 1px solid var(--accent);
-    color: var(--accent);
-    padding: 8px 16px;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    cursor: pointer;
-    border-radius: 3px;
-    letter-spacing: 1px;
-    transition: all 0.2s;
-    text-transform: uppercase;
-    width: 100%;
-    margin-top: 8px;
-  }
-
-  .export-btn:hover {
-    background: var(--accent);
-    color: var(--bg);
-    box-shadow: var(--glow);
-  }
-
-  .notice {
-    background: rgba(255,107,53,0.07);
-    border: 1px solid rgba(255,107,53,0.3);
-    border-radius: 4px;
-    padding: 10px 14px;
-    font-size: 10px;
-    color: var(--accent2);
-    line-height: 1.6;
-    margin-bottom: 12px;
-  }
-
-  .notice strong { display: block; margin-bottom: 4px; letter-spacing: 1px; }
-
-  code {
-    background: rgba(0,212,255,0.08);
-    color: var(--accent);
-    padding: 1px 5px;
-    border-radius: 2px;
-    font-size: 10px;
-  }
-
-  .tag { 
-    display: inline-block;
-    padding: 2px 6px;
-    border-radius: 2px;
-    font-size: 9px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-  }
-
-  .tag-anim { background: rgba(0,212,255,0.15); color: var(--accent); }
-  .tag-tex { background: rgba(255,107,53,0.15); color: var(--accent2); }
-  .tag-ctrl { background: rgba(127,255,127,0.15); color: var(--accent3); }
-
-  .hidden { display: none !important; }
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg-primary:#fff;--bg-secondary:#f5f5f5;--bg-success:#e6f9ee;--bg-danger:#fdecea;
+  --text-primary:#111;--text-secondary:#666;--text-tertiary:#aaa;--text-success:#1a7a3f;--text-danger:#b71c1c;
+  --border-t:rgba(0,0,0,0.12);--border-s:rgba(0,0,0,0.2);--border-p:rgba(0,0,0,0.35);
+  --r-md:8px;--r-lg:12px;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg-primary:#1e1e1e;--bg-secondary:#2a2a2a;--bg-success:#0d3320;--bg-danger:#3b1010;
+    --text-primary:#f0f0f0;--text-secondary:#aaa;--text-tertiary:#666;--text-success:#4caf82;--text-danger:#f08080;
+    --border-t:rgba(255,255,255,0.1);--border-s:rgba(255,255,255,0.2);--border-p:rgba(255,255,255,0.35);
+  }
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--text-primary);background:var(--bg-secondary);}
+.wrap{max-width:620px;margin:0 auto;padding:2rem 1rem;}
+h1{font-size:22px;font-weight:500;margin-bottom:4px;}
+.sub{font-size:13px;color:var(--text-secondary);margin-bottom:20px;}
+.card{background:var(--bg-primary);border:0.5px solid var(--border-t);border-radius:var(--r-lg);padding:1rem 1.25rem;margin-bottom:12px;}
+.card-title{font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
+.drop{display:flex;flex-direction:column;align-items:center;gap:6px;border:1.5px dashed var(--border-s);border-radius:var(--r-md);padding:1.25rem 1rem;text-align:center;cursor:pointer;transition:border-color .15s;}
+.drop:hover{border-color:var(--border-p);}
+.drop-icon{width:30px;height:30px;border-radius:50%;background:var(--bg-secondary);display:flex;align-items:center;justify-content:center;}
+.drop-icon svg{width:14px;height:14px;stroke:var(--text-secondary);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.drop-label{font-size:13px;color:var(--text-secondary);}
+.drop-hint{font-size:11px;color:var(--text-tertiary);}
+.meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
+.metric{background:var(--bg-secondary);border-radius:var(--r-md);padding:8px 10px;}
+.metric-label{font-size:11px;color:var(--text-secondary);margin-bottom:2px;}
+.metric-val{font-size:13px;font-weight:500;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{font-size:12px;color:var(--text-secondary);font-weight:500;}
+.field input,.field select{font-family:monospace;font-size:13px;padding:7px 10px;border-radius:var(--r-md);border:0.5px solid var(--border-s);background:var(--bg-secondary);color:var(--text-primary);width:100%;}
+.field input:focus,.field select:focus{outline:none;border-color:var(--border-p);}
+.ver-row{display:flex;align-items:flex-end;gap:8px;margin-top:10px;}
+.ver-row .field{flex:1;}
+.loop-toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;user-select:none;padding-bottom:8px;}
+.loop-toggle input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--text-primary);}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+.btn{font-family:inherit;font-size:13px;font-weight:500;padding:7px 16px;border-radius:var(--r-md);border:0.5px solid var(--border-s);background:transparent;color:var(--text-primary);cursor:pointer;transition:background .12s;white-space:nowrap;}
+.btn:hover:not(:disabled){background:var(--bg-secondary);}
+.btn:active:not(:disabled){transform:scale(0.98);}
+.btn:disabled{opacity:.35;cursor:default;}
+.btn-primary{background:var(--text-primary);color:var(--bg-primary);border-color:transparent;}
+.btn-primary:hover:not(:disabled){opacity:.88;background:var(--text-primary);}
+.status{font-size:13px;padding:7px 11px;border-radius:var(--r-md);margin-top:10px;background:var(--bg-secondary);color:var(--text-secondary);display:flex;align-items:center;gap:6px;}
+.status.ok{background:var(--bg-success);color:var(--text-success);}
+.status.err{background:var(--bg-danger);color:var(--text-danger);}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;}
+.player-wrap{padding:10px;background:var(--bg-secondary);border-radius:var(--r-md);}
+audio{width:100%;border-radius:var(--r-md);}
+.player-info{font-size:11px;color:var(--text-tertiary);margin-top:6px;display:flex;justify-content:space-between;}
+.dl-meta{font-size:12px;color:var(--text-tertiary);margin-top:8px;}
 </style>
 </head>
 <body>
+<div class="wrap">
+  <h1>MCA ↔ WAV Converter</h1>
+  <p class="sub">Capcom MADP · v3/v4/v5 · DSP-ADPCM · vgmstream decode · MCAConverter encode</p>
 
-<header>
-  <div class="logo">AA<span>:</span>GUI <span>VIEWER</span></div>
-  <div class="subtitle">Phoenix Wright · Spirit of Justice · 3DS UI Format</div>
-</header>
+  <div class="card">
+    <div class="card-title">Input file</div>
+    <label class="drop">
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <span class="drop-label" id="dropText">Click to choose a .mca or .wav file</span>
+      <span class="drop-hint">.mca · .wav</span>
+      <input type="file" accept=".mca,.wav" id="fileInput" style="display:none">
+    </label>
+    <div class="meta-grid" id="metaGrid" style="display:none"></div>
+  </div>
 
-<div class="main">
-  <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept=".gui">
-      <span class="drop-icon">📂</span>
-      <span class="drop-text">DROP .GUI FILE</span>
-      <span class="drop-sub">or click to browse</span>
-    </div>
-
-    <div class="section-header">
-      Structure <span class="count" id="nodeCount">0</span>
-    </div>
-
-    <div class="tree" id="tree">
-      <div style="padding:24px 16px;text-align:center;font-size:10px;color:var(--dim);line-height:1.8">
-        Open a .gui file<br>to explore its structure
+  <div class="card">
+    <div class="card-title">Loop points</div>
+    <div class="row2">
+      <div class="field">
+        <label for="loopStart">Loop start (samples)</label>
+        <input type="number" id="loopStart" value="0" min="0">
+      </div>
+      <div class="field">
+        <label for="loopEnd">Loop end (samples)</label>
+        <input type="number" id="loopEnd" value="0" min="0">
       </div>
     </div>
-  </aside>
-
-  <!-- Main Content -->
-  <div class="content">
-    <div class="toolbar">
-      <button class="toolbar-btn" onclick="exportJSON()" id="btnExportJSON" disabled>⬇ Export JSON</button>
-      <button class="toolbar-btn" onclick="exportStrings()" id="btnExportStrings" disabled>⬇ Export Strings</button>
-      <div class="toolbar-sep"></div>
-      <button class="toolbar-btn" onclick="exportAnimList()" id="btnExportAnims" disabled>⬇ Animation List</button>
-      <button class="toolbar-btn" onclick="exportTextureList()" id="btnExportTex" disabled>⬇ Texture Refs</button>
-    </div>
-
-    <div class="tabs">
-      <div class="tab active" onclick="switchTab('overview')">Overview</div>
-      <div class="tab" onclick="switchTab('animations')">Animations</div>
-      <div class="tab" onclick="switchTab('textures')">Textures</div>
-      <div class="tab" onclick="switchTab('strings')">Strings</div>
-      <div class="tab" onclick="switchTab('hex')">Hex</div>
-      <div class="tab" onclick="switchTab('guide')">Import Guide</div>
-    </div>
-
-    <div class="tab-content" id="tabOverview">
-      <div class="welcome" id="welcomeMsg">
-        <div class="welcome-icon">🎮</div>
-        <div class="welcome-title">GUI FILE INSPECTOR</div>
-        <div class="welcome-sub">Drop a .gui file from Ace Attorney: Spirit of Justice to inspect its structure, animations, and texture references.</div>
-      </div>
-      <div id="overviewContent" class="hidden"></div>
-    </div>
-
-    <div class="tab-content hidden" id="tabAnimations">
-      <div id="animContent">
-        <div class="welcome">
-          <div class="welcome-icon">🎬</div>
-          <div class="welcome-title">NO FILE LOADED</div>
-        </div>
+    <div class="ver-row">
+      <div class="field">
+        <label for="version">Output MCA version</label>
+        <select id="version">
+          <option value="3">v3 — RE Mercs 3D, SSF4 3D</option>
+          <option value="4" selected>v4 — EX Troopers, AA5 (default)</option>
+          <option value="5">v5 — AA6, MH4U</option>
+        </select>
       </div>
     </div>
+  </div>
 
-    <div class="tab-content hidden" id="tabTextures">
-      <div id="texContent">
-        <div class="welcome">
-          <div class="welcome-icon">🖼</div>
-          <div class="welcome-title">NO FILE LOADED</div>
-        </div>
+  <div class="card">
+    <div class="card-title">Convert</div>
+    <div class="btn-row">
+      <button class="btn" id="btnDecode" disabled>MCA → WAV</button>
+      <button class="btn" id="btnEncode" disabled>WAV → MCA</button>
+    </div>
+    <div class="status" id="status" style="display:none">
+      <span class="dot"></span><span id="statusText"></span>
+    </div>
+  </div>
+
+  <div class="card" id="playerCard" style="display:none">
+    <div class="card-title">
+      <span>Preview</span>
+      <label class="loop-toggle">
+        <input type="checkbox" id="loopToggle" checked>
+        Loop playback
+      </label>
+    </div>
+    <div class="player-wrap">
+      <audio id="player" controls></audio>
+      <div class="player-info">
+        <span id="playerFile"></span>
+        <span id="playerLoopInfo"></span>
       </div>
     </div>
+  </div>
 
-    <div class="tab-content hidden" id="tabStrings">
-      <div id="strContent">
-        <div class="welcome">
-          <div class="welcome-icon">🔤</div>
-          <div class="welcome-title">NO FILE LOADED</div>
-        </div>
-      </div>
+  <div class="card" id="dlCard" style="display:none">
+    <div class="card-title">Output</div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btnDl"><span id="dlLabel">Download file</span></button>
     </div>
-
-    <div class="tab-content hidden" id="tabHex">
-      <div id="hexContent">
-        <div class="welcome">
-          <div class="welcome-icon">⬡</div>
-          <div class="welcome-title">NO FILE LOADED</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="tab-content hidden" id="tabGuide">
-      <!-- Import Guide always visible -->
-    </div>
-
-    <div class="status-bar">
-      <span><span class="status-dot"></span><span id="statusText">Ready — drop a .gui file to begin</span></span>
-      <span id="statusSize"></span>
-      <span id="statusOffset"></span>
-    </div>
+    <div class="dl-meta" id="dlMeta"></div>
   </div>
 </div>
 
 <script>
-// ─── GUI PARSER ──────────────────────────────────────────────────────────────
-const MAGIC = 0x00495547; // "GUI\0" little-endian
+// ─── State ────────────────────────────────────────────────────────────────────
+let fileData=null,fileExt="",fileName="",outBlob=null,outName="",parsedSampleRate=44100;
+const player=document.getElementById("player");
+document.getElementById("fileInput").addEventListener("change",e=>{const f=e.target.files[0];if(f)handleFile(f);});
+document.getElementById("btnDecode").addEventListener("click",decode);
+document.getElementById("btnEncode").addEventListener("click",encode);
+document.getElementById("btnDl").addEventListener("click",dlFile);
+player.addEventListener("timeupdate",handleTimeUpdate);
+document.getElementById("loopStart").addEventListener("input",updateLoopInfo);
+document.getElementById("loopEnd").addEventListener("input",updateLoopInfo);
 
-class GUIParser {
-  constructor(buffer) {
-    this.buf = buffer;
-    this.view = new DataView(buffer);
-    this.bytes = new Uint8Array(buffer);
-    this.size = buffer.byteLength;
-    this.parsed = {};
+function setStatus(msg,cls){document.getElementById("statusText").textContent=msg;const el=document.getElementById("status");el.className="status "+(cls||"");el.style.display="flex";}
+function setMeta(pairs){const g=document.getElementById("metaGrid");g.innerHTML=pairs.map(([l,v])=>`<div class="metric"><div class="metric-label">${l}</div><div class="metric-val">${v}</div></div>`).join("");g.style.display="grid";}
+function hex(n){return"0x"+(n>>>0).toString(16).toUpperCase();}
+function tick(){return new Promise(r=>setTimeout(r,20));}
+function baseName(n){return n.replace(/\.[^.]+$/,"");}
+function getLS(){return parseInt(document.getElementById("loopStart").value)||0;}
+function getLE(){return parseInt(document.getElementById("loopEnd").value)||0;}
+function getVer(){return parseInt(document.getElementById("version").value)||4;}
+function isLoopEnabled(){return document.getElementById("loopToggle").checked;}
+function updateLoopInfo(){const ls=getLS(),le=getLE(),sr=parsedSampleRate||44100;document.getElementById("playerLoopInfo").textContent=le>ls?`Loop: ${ls.toLocaleString()} → ${le.toLocaleString()} (${((le-ls)/sr).toFixed(2)}s)`:"No loop";}
+
+async function handleFile(f){
+  fileName=f.name;fileExt=f.name.split(".").pop().toLowerCase();
+  fileData=new Uint8Array(await f.arrayBuffer());
+  document.getElementById("dropText").textContent=f.name;
+  document.getElementById("playerCard").style.display="none";
+  document.getElementById("dlCard").style.display="none";
+  document.getElementById("status").style.display="none";
+  document.getElementById("btnDecode").disabled=fileExt!=="mca";
+  document.getElementById("btnEncode").disabled=fileExt!=="wav";
+  if(fileExt==="mca"){
+    try{const m=parseMCAHeader(fileData);parsedSampleRate=m.sampleRate;
+      document.getElementById("loopStart").value=m.loopStart;
+      document.getElementById("loopEnd").value=m.loopEnd;
+      setMeta([
+        ["Version","v"+m.version],["Channels",m.channels],
+        ["Rate",m.sampleRate+" Hz"],["Samples",m.numSamples.toLocaleString()],
+        ["Loop start",m.loopStart.toLocaleString()],["Loop end",m.loopEnd.toLocaleString()],
+        ["Audio at",hex(m.startOffset)],["Head",hex(m.headSize)]
+      ]);
+      updateLoopInfo();setStatus("MCA v"+m.version+" parsed — "+m.channels+"ch "+m.sampleRate+" Hz","ok");
+    }catch(e){setStatus("MCA parse error: "+e.message,"err");}
+  } else if(fileExt==="wav"){
+    try{const w=parseWAVHeader(fileData);parsedSampleRate=w.sampleRate;
+      setMeta([["Channels",w.channels],["Rate",w.sampleRate+" Hz"],["Bit depth",w.bitsPerSample+"b"],["Samples",w.numSamples.toLocaleString()]]);
+      updateLoopInfo();setStatus("WAV loaded — "+w.channels+"ch "+w.sampleRate+" Hz","ok");
+    }catch(e){setStatus("WAV parse error: "+e.message,"err");}
+  }
+}
+
+async function decode(){setStatus("Decoding…","");await tick();
+  try{const wav=mcaToWav(fileData);const blob=new Blob([wav],{type:"audio/wav"});const name=baseName(fileName)+".wav";
+    outBlob=blob;outName=name;player.src=URL.createObjectURL(blob);
+    document.getElementById("playerCard").style.display="";document.getElementById("playerFile").textContent=name;
+    updateLoopInfo();showDl(name,wav.length);setStatus("Decoded → "+name,"ok");
+  }catch(e){setStatus("Decode error: "+e.message,"err");}
+}
+
+async function encode(){setStatus("Encoding… (LPC analysis, may take a moment)","");await tick();
+  try{const mca=wavToMca(fileData,getLS(),getLE(),getVer());const blob=new Blob([mca],{type:"application/octet-stream"});const name=baseName(fileName)+".mca";
+    outBlob=blob;outName=name;document.getElementById("playerCard").style.display="none";
+    showDl(name,mca.length);setStatus("Encoded → "+name,"ok");
+  }catch(e){setStatus("Encode error: "+e.message,"err");}
+}
+
+function showDl(name,bytes){document.getElementById("dlLabel").textContent="Download "+name;document.getElementById("dlMeta").textContent=name+" · "+(bytes/1024).toFixed(1)+" KB";document.getElementById("dlCard").style.display="";}
+function dlFile(){if(!outBlob)return;const a=document.createElement("a");a.href=URL.createObjectURL(outBlob);a.download=outName;a.click();}
+function handleTimeUpdate(){if(!isLoopEnabled())return;const ls=getLS(),le=getLE(),sr=parsedSampleRate||44100;if(le>ls&&player.currentTime*sr>=le)player.currentTime=ls/sr;}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MCA HEADER PARSER — vgmstream/src/meta/mca.c accurate
+//
+// Header layout (LE unless noted):
+//   0x00  u32  "MADP" magic
+//   0x04  u16  version
+//   0x06  u16  (padding / unknown)
+//   0x08  u8   channel_count
+//   0x09  u8   (unknown)
+//   0x0A  u16  interleave  (always 0x100 observed)
+//   0x0C  u32  num_samples
+//   0x10  u16  sample_rate
+//   0x12  u16  (unknown)
+//   0x14  u32  loop_start
+//   0x18  u32  loop_end    (>0 → has loop)
+//   0x1C  u16  head_size   (v4+; v3 derives it)
+//   0x1E  u16  (unknown)
+//   0x20  u32  data_size
+//   0x24  u32  (unknown)
+//   0x28  u16  coef_shift  (v4+; v3 = 0)
+//   0x2A  …   (rest of fixed header)
+//   0x30  …   coef blocks, each 0x30 bytes per channel
+//             coef block base = head_size - 0x30*channels + coef_shift*0x14
+//
+// For v3:  head_size = file_size - data_size  (no explicit field)
+//          start_offset = head_size
+//          coef_shift = 0
+// For v4+: head_size = read_16LE(0x1C)
+//          start_offset = file_size - data_size
+//          coef_shift = read_16LE(0x28)
+// ══════════════════════════════════════════════════════════════════════════════
+function parseMCAHeader(buf){
+  const dv=new DataView(buf.buffer,buf.byteOffset);
+  const len=buf.length;
+
+  // Magic check "MADP"
+  if(buf[0]!==0x4D||buf[1]!==0x41||buf[2]!==0x44||buf[3]!==0x50)
+    throw new Error("Not a MADP/MCA file (bad magic)");
+
+  const version   = dv.getUint16(0x04,true);
+  const channels  = dv.getUint8(0x08);
+  const interleave= dv.getUint16(0x0A,true)||0x100;
+  const numSamples= dv.getUint32(0x0C,true);
+  const sampleRate= dv.getUint16(0x10,true);
+  const loopStart = dv.getUint32(0x14,true);
+  const loopEnd   = dv.getUint32(0x18,true);
+  const dataSize  = dv.getUint32(0x20,true);
+
+  if(channels<1||channels>8) throw new Error("Bad channel count: "+channels);
+  if(sampleRate<100||sampleRate>192000) throw new Error("Bad sample rate: "+sampleRate);
+  if(dataSize===0||dataSize>len) throw new Error("Bad data_size "+hex(dataSize)+" (file "+hex(len)+")");
+
+  // Derive head_size, coef_shift, start_offset exactly as vgmstream does
+  const CS=0x30; // bytes per coef block
+  let headSize, coefShift, startOffset;
+
+  if(version<=3){
+    // v3: head_size implicit = file_size - data_size
+    headSize    = len - dataSize;
+    coefShift   = 0;
+    startOffset = headSize;
+  } else {
+    // v4+: explicit head_size and coef_shift
+    headSize    = dv.getUint16(0x1C,true);
+    coefShift   = dv.getUint16(0x28,true);
+    startOffset = len - dataSize;  // "usually head_size but not for some MH3U songs"
   }
 
-  u8(off) { return this.view.getUint8(off); }
-  u16(off) { return this.view.getUint16(off, true); }
-  u32(off) { return this.view.getUint32(off, true); }
-  s32(off) { return this.view.getInt32(off, true); }
-  f32(off) { return this.view.getFloat32(off, true); }
+  // coef_start = head_size - CS*channels  (end of fixed header region before coef blocks)
+  // coef_offset = coef_start + coef_shift*0x14
+  const coefStart  = headSize - CS*channels;
+  const coefOffset = coefStart + coefShift*0x14;
 
-  readString(off) {
-    let s = '';
-    while (off < this.size && this.bytes[off] !== 0) {
-      s += String.fromCharCode(this.bytes[off++]);
-    }
-    return s;
+  // Validate ranges
+  if(startOffset<0||startOffset>=len)
+    throw new Error("Audio start out of range: "+hex(startOffset));
+  if(coefOffset<0||coefOffset+CS*channels>startOffset)
+    throw new Error("Coef block out of range: "+hex(coefOffset));
+
+  return{version,channels,interleave,numSamples,sampleRate,
+         loopStart,loopEnd,headSize,coefOffset,startOffset,dataSize};
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MCA → WAV  (vgmstream-accurate)
+// ══════════════════════════════════════════════════════════════════════════════
+function mcaToWav(buf){
+  const m  = parseMCAHeader(buf);
+  const dv = new DataView(buf.buffer, buf.byteOffset);
+
+  // Read coef tables (LE int16, 16 values per channel, one block per channel)
+  const coefs = [];
+  for(let ch=0;ch<m.channels;ch++){
+    const c = new Int16Array(16);
+    for(let i=0;i<16;i++)
+      c[i] = dv.getInt16(m.coefOffset + ch*0x30 + i*2, true);
+    coefs.push(c);
   }
 
-  extractAllStrings() {
-    const strings = new Set();
-    let i = 0;
-    while (i < this.size) {
-      // Find runs of printable ASCII
-      if (this.bytes[i] >= 0x20 && this.bytes[i] < 0x7f) {
-        let j = i;
-        let s = '';
-        while (j < this.size && this.bytes[j] >= 0x20 && this.bytes[j] < 0x7f) {
-          s += String.fromCharCode(this.bytes[j++]);
+  // DSP-ADPCM decode with interleaved channel layout
+  const audioData = buf.slice(m.startOffset);
+  const pcm = decodeDSP(audioData, m.channels, m.numSamples, coefs, m.interleave);
+  return buildWAV(pcm, m.channels, m.sampleRate);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DSP-ADPCM DECODER — vgmstream ngc_dsp_decoder.c accurate
+//
+// Frame layout (8 bytes / 14 samples):
+//   byte 0:    header — low nibble = scale exponent, high nibble = coef index (0-7)
+//   bytes 1-7: 14 packed 4-bit signed nibbles (high then low within each byte)
+//
+// Sample formula:
+//   sample = ( nib*scale<<11 + 1024 + coef1*hist1 + coef2*hist2 ) >> 11
+//   clamped to [-32768, 32767]
+//
+// Data is interleaved: interleave bytes of channel 0, then interleave bytes of
+// channel 1, etc., repeating in blocks.
+// ══════════════════════════════════════════════════════════════════════════════
+function decodeDSP(src, channels, totalSamples, coefs, interleave){
+  const SPB = 14;   // samples per frame
+  const BPB = 8;    // bytes per frame
+  const fpB = Math.floor(interleave / BPB); // frames per interleave block
+
+  const out   = new Int16Array(totalSamples * channels);
+  const hist1 = new Int32Array(channels);
+  const hist2 = new Int32Array(channels);
+  const done  = new Int32Array(channels);
+
+  let block = 0;
+  for(;;){
+    // Check if all channels done
+    let any = false;
+    for(let ch=0;ch<channels;ch++) if(done[ch]<totalSamples){any=true;break;}
+    if(!any) break;
+
+    for(let ch=0;ch<channels;ch++){
+      if(done[ch]>=totalSamples) continue;
+
+      const blockBase = (block*channels + ch)*interleave;
+      if(blockBase >= src.length) break;
+
+      for(let f=0;f<fpB && done[ch]<totalSamples;f++){
+        const fOff = blockBase + f*BPB;
+        if(fOff >= src.length) break;
+
+        const hdr   = src[fOff];
+        const scale = 1 << (hdr & 0xF);
+        const ci    = (hdr >> 4) & 0x7;
+        const c1    = coefs[ch][ci*2];
+        const c2    = coefs[ch][ci*2+1];
+
+        for(let s=0;s<SPB && done[ch]<totalSamples;s++){
+          const byteIdx = fOff + 1 + (s>>1);
+          if(byteIdx >= src.length) break;
+
+          // High nibble for even samples, low nibble for odd
+          const rawNib = (s&1) ? (src[byteIdx]&0xF) : ((src[byteIdx]>>4)&0xF);
+          // Sign-extend 4-bit value
+          const nib = rawNib >= 8 ? rawNib-16 : rawNib;
+
+          let smp = (((nib * scale) << 11) + 1024 + c1*hist1[ch] + c2*hist2[ch]) >> 11;
+          smp = smp > 32767 ? 32767 : smp < -32768 ? -32768 : smp;
+
+          hist2[ch] = hist1[ch];
+          hist1[ch] = smp;
+          out[done[ch]*channels + ch] = smp;
+          done[ch]++;
         }
-        if (s.length >= 3) strings.add({ str: s, offset: i });
-        i = j;
-      } else {
-        i++;
-      }
-    }
-    return [...strings];
-  }
-
-  parse() {
-    const magic = this.u32(0);
-    const magicStr = String.fromCharCode(
-      this.bytes[0], this.bytes[1], this.bytes[2]
-    );
-
-    this.parsed.magic = magicStr;
-    this.parsed.isValid = (magicStr === 'GUI');
-    this.parsed.fileSize = this.size;
-
-    // Header fields (based on known SOJ .gui structure)
-    this.parsed.version = this.u32(4);
-    this.parsed.unk08 = this.u32(8);
-    this.parsed.flags = this.u16(0xC);
-    this.parsed.unk0E = this.u16(0xE);
-
-    // Counts from header region
-    this.parsed.nodeCount = this.u32(0x1C);
-    this.parsed.unk20 = this.u32(0x20);
-    this.parsed.unk24 = this.u32(0x24);
-
-    // Extract all strings
-    const allStrings = this.extractAllStrings();
-    this.parsed.allStrings = allStrings;
-
-    // Categorize strings
-    const animNames = [];
-    const textureRefs = [];
-    const controlNames = [];
-    const miscStrings = [];
-
-    const KNOWN_ANIMS = ['DEFAULT','FADE_IN','FADE_OUT','DISABLE','DECIDE','INVISIBLE',
-      'SKIP','SKIP_OUT','BACKLOG_IN','BACKLOG_OUT','EXAM_IN','EXAM_OUT',
-      'Start','Process0'];
-    const KNOWN_CTRL = ['ControlPoint','PosX','PosY','PosZ','Priority','ReferencePosition',
-      'RotationX','RotationY','RotationZ','SclX','SclY','SclZ','Visible',
-      'BlendState','SamplerState','Texture','VertexColor','Reverse','Size',
-      'Tiling','mTextureRect','DrawUpper','DrawLower','Play','Speed',
-      'ColorControl','ResourceId','AnimationId','SequenceId','Foundation',
-      'Billboard','DrawPass'];
-
-    for (const s of allStrings) {
-      if (KNOWN_ANIMS.includes(s.str)) {
-        animNames.push(s);
-      } else if (s.str.includes('\\') || s.str.includes('/') || s.str.includes('_BM_') || s.str.includes('_HQ')) {
-        textureRefs.push(s);
-      } else if (KNOWN_CTRL.includes(s.str)) {
-        controlNames.push(s);
-      } else if (s.str.startsWith('a_') || s.str.startsWith('Null_') || s.str.startsWith('sys_')) {
-        animNames.push(s); // node/anim labels
-      } else {
-        miscStrings.push(s);
       }
     }
 
-    this.parsed.animNames = animNames;
-    this.parsed.textureRefs = textureRefs;
-    this.parsed.controlNames = controlNames;
-    this.parsed.miscStrings = miscStrings;
+    block++;
+    if(block*channels*interleave >= src.length) break;
+  }
+  return out;
+}
 
-    // Look for the main texture path
-    const texPath = allStrings.find(s => s.str.includes('UI\\') || s.str.includes('tex\\'));
-    this.parsed.mainTexturePath = texPath ? texPath.str : null;
+// ══════════════════════════════════════════════════════════════════════════════
+// WAV BUILDER / PARSER
+// ══════════════════════════════════════════════════════════════════════════════
+function buildWAV(pcm, channels, sampleRate){
+  const dataBytes = pcm.length * 2;
+  const ab  = new ArrayBuffer(44 + dataBytes);
+  const dv  = new DataView(ab);
+  const ws  = (o,s)=>{for(let i=0;i<s.length;i++) dv.setUint8(o+i,s.charCodeAt(i));};
+  ws(0,"RIFF"); dv.setUint32(4,36+dataBytes,true); ws(8,"WAVE");
+  ws(12,"fmt "); dv.setUint32(16,16,true); dv.setUint16(20,1,true);
+  dv.setUint16(22,channels,true);
+  dv.setUint32(24,sampleRate,true);
+  dv.setUint32(28,sampleRate*channels*2,true);
+  dv.setUint16(32,channels*2,true); dv.setUint16(34,16,true);
+  ws(36,"data"); dv.setUint32(40,dataBytes,true);
+  new Int16Array(ab,44).set(pcm);
+  return new Uint8Array(ab);
+}
 
-    // Scan for float sequences that look like UV / position data
-    this.parsed.floatSamples = this.scanFloats();
+function parseWAVHeader(buf){
+  const dv=new DataView(buf.buffer,buf.byteOffset);
+  if(buf[0]!==0x52||buf[1]!==0x49||buf[2]!==0x46||buf[3]!==0x46)
+    throw new Error("Not a RIFF WAV");
+  const channels    = dv.getUint16(22,true);
+  const sampleRate  = dv.getUint32(24,true);
+  const bitsPerSample=dv.getUint16(34,true);
+  if(bitsPerSample!==16) throw new Error("Only 16-bit PCM WAV supported");
+  // Scan for 'data' chunk
+  let off=12;
+  while(off<buf.length-8){
+    const id = String.fromCharCode(buf[off],buf[off+1],buf[off+2],buf[off+3]);
+    const sz = dv.getUint32(off+4,true);
+    if(id==="data") return{channels,sampleRate,bitsPerSample,
+      numSamples:Math.floor(sz/(channels*2)),dataOffset:off+8,dataSize:sz};
+    off += 8 + sz + (sz&1);
+  }
+  throw new Error("No data chunk in WAV");
+}
 
-    return this.parsed;
+// ══════════════════════════════════════════════════════════════════════════════
+// WAV → MCA ENCODER — faithful port of MCAConverter logic
+//
+// Header layout written (all LE):
+//   v3:
+//     0x00 "MADP"  0x04 version(u16)  0x06 0x0000
+//     0x08 channels(u8)  0x09 0x00  0x0A interleave(u16)
+//     0x0C numSamples(u32)  0x10 sampleRate(u16)  0x12 0x0000
+//     0x14 loopStart(u32)  0x18 loopEnd(u32)
+//     0x1C 0x0000  0x1E 0x0000
+//     0x20 dataSize(u32)  0x24..0x2F zeroed
+//     0x30 coef blocks (0x30 each)
+//     [audio data]
+//
+//   v4/v5 (MCAConverter-identical):
+//     same but:
+//     0x1C headSize(u16)
+//     0x28 coef_shift(u16) = 0
+//     [audio data appended after header]
+//
+// Coef block (0x30 bytes): 16×int16 coefs, then 8 bytes padding/history = 0x20+0x10
+// ══════════════════════════════════════════════════════════════════════════════
+function wavToMca(buf, loopStart=0, loopEnd=0, version=4){
+  const{channels,sampleRate,numSamples,dataOffset,dataSize} = parseWAVHeader(buf);
+  const pcm = new Int16Array(buf.buffer, buf.byteOffset+dataOffset, dataSize>>1);
+
+  const INTERLEAVE = 0x100;
+  const SPB        = 14;          // samples per DSP frame
+  const BPF        = 8;           // bytes per DSP frame
+  const CS         = 0x30;        // bytes per coef block
+  const FIXED_HDR  = 0x30;        // bytes before first coef block
+
+  // Compute sizes
+  const headSize   = FIXED_HDR + channels * CS;
+  const framesPerCh= Math.ceil(numSamples / SPB);
+  const totalBlocks= Math.ceil(framesPerCh / Math.floor(INTERLEAVE/BPF));
+  const audioBytes = totalBlocks * channels * INTERLEAVE;
+
+  // Per-channel: compute LPC coefs and encode to DSP-ADPCM
+  const chCoefs  = [];
+  const chEncoded= [];
+  for(let ch=0;ch<channels;ch++){
+    const mono = new Int16Array(numSamples);
+    for(let s=0;s<numSamples;s++) mono[s] = pcm[s*channels+ch];
+    const coefs = dspCorrelateCoefs(mono);
+    chCoefs.push(coefs);
+    chEncoded.push(encodeMono(mono, coefs));
   }
 
-  scanFloats() {
-    const results = [];
-    for (let i = 0; i + 4 <= this.size; i += 4) {
-      const f = this.f32(i);
-      // Reasonable UV / coord range
-      if (Number.isFinite(f) && Math.abs(f) < 2000 && Math.abs(f) > 0.001) {
-        results.push({ offset: i, value: f });
+  // Allocate output buffer
+  const out = new Uint8Array(headSize + audioBytes);
+  const dv  = new DataView(out.buffer);
+
+  // Write magic "MADP"
+  out[0]=0x4D; out[1]=0x41; out[2]=0x44; out[3]=0x50;
+
+  // Version
+  dv.setUint16(0x04, version, true);
+
+  // Channel count
+  out[0x08] = channels;
+
+  // Interleave
+  dv.setUint16(0x0A, INTERLEAVE, true);
+
+  // numSamples
+  dv.setUint32(0x0C, numSamples, true);
+
+  // sampleRate
+  dv.setUint16(0x10, sampleRate, true);
+
+  // loopStart / loopEnd
+  dv.setUint32(0x14, loopStart, true);
+  dv.setUint32(0x18, loopEnd,   true);
+
+  if(version<=3){
+    // v3: data_size at 0x20, no explicit headSize/coefShift fields
+    dv.setUint32(0x20, audioBytes, true);
+  } else {
+    // v4/v5: headSize at 0x1C, dataSize at 0x20, coefShift=0 at 0x28
+    dv.setUint16(0x1C, headSize,   true);
+    dv.setUint32(0x20, audioBytes, true);
+    dv.setUint16(0x28, 0,          true);
+  }
+
+  // Write coef blocks starting at FIXED_HDR (0x30)
+  for(let ch=0;ch<channels;ch++){
+    const base = FIXED_HDR + ch*CS;
+    for(let i=0;i<16;i++)
+      dv.setInt16(base + i*2, chCoefs[ch][i], true);
+    // Remaining 0x10 bytes of block (history etc.) left as zero
+  }
+
+  // Interleave encoded audio channels into output
+  for(let b=0;b<totalBlocks;b++){
+    for(let ch=0;ch<channels;ch++){
+      const src  = chEncoded[ch];
+      const srcOff = b * INTERLEAVE;
+      const dstOff = headSize + (b*channels + ch)*INTERLEAVE;
+      const count  = Math.min(INTERLEAVE, src.length - srcOff);
+      if(count>0) out.set(src.subarray(srcOff, srcOff+count), dstOff);
+      // remainder of interleave block stays zero (padding)
+    }
+  }
+
+  return out;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LPC COEF DERIVATION — port of grok.c DSPCorrelateCoefs()
+// Derives 8 optimal predictor coefficient pairs via autocorrelation / LPC.
+// Used by both Nintendo's official encoder and MCAConverter.
+// ══════════════════════════════════════════════════════════════════════════════
+function dspCorrelateCoefs(pcm){
+  const numFrames = Math.ceil(pcm.length / 14);
+
+  // Collect "records" — one per frame that has enough energy
+  const records = [];
+  const vec1  = new Float64Array(3);
+  const hist  = [new Float64Array(14), new Float64Array(14)];
+
+  for(let fi=0;fi<numFrames;fi++){
+    // Shift history buffer
+    for(let z=0;z<14;z++) hist[0][z] = hist[1][z];
+    for(let z=0;z<14;z++) hist[1][z] = (fi*14+z < pcm.length) ? pcm[fi*14+z] : 0;
+
+    const v1 = innerProductMerge(hist[1]);
+    if(Math.abs(v1[0]) > 10.0){
+      const mtx = outerProductMerge(hist[1]);
+      const vidxs = [0,0,0];
+      if(!analyzeRanges(mtx, vidxs)){
+        bidirectionalFilter(mtx, vidxs, v1);
+        if(!quadraticMerge(v1)){
+          const rec = new Float64Array(3);
+          finishRecord(v1, rec);
+          records.push(rec);
+        }
       }
     }
-    return results.slice(0, 200); // limit
-  }
-}
-
-// ─── STATE ──────────────────────────────────────────────────────────────────
-let gParsed = null;
-let gFileName = '';
-let gBytes = null;
-let activeTab = 'overview';
-let animTimer = null;
-let animFrame = 0;
-let animPlaying = false;
-
-// ─── FILE HANDLING ──────────────────────────────────────────────────────────
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
-  const f = e.dataTransfer.files[0];
-  if (f) loadFile(f);
-});
-fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
-
-function loadFile(file) {
-  gFileName = file.name;
-  const reader = new FileReader();
-  reader.onload = e => {
-    gBytes = e.target.result;
-    const parser = new GUIParser(gBytes);
-    gParsed = parser.parse();
-    renderAll();
-    setStatus(`Loaded: ${file.name} (${(file.size/1024).toFixed(1)} KB)`);
-    document.getElementById('statusSize').textContent = `${file.size} bytes`;
-
-    // Enable export buttons
-    document.querySelectorAll('.toolbar-btn').forEach(b => b.removeAttribute('disabled'));
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-// ─── RENDER ─────────────────────────────────────────────────────────────────
-function renderAll() {
-  renderTree();
-  renderOverview();
-  renderAnimations();
-  renderTextures();
-  renderStrings();
-  renderHex();
-  renderGuide();
-}
-
-function renderTree() {
-  const p = gParsed;
-  const tree = document.getElementById('tree');
-  document.getElementById('nodeCount').textContent =
-    p.animNames.length + p.textureRefs.length;
-
-  let html = '';
-
-  html += `<div class="tree-group-header">Animations (${p.animNames.length})</div>`;
-  for (const a of p.animNames) {
-    html += `<div class="tree-node" onclick="jumpToAnim('${escH(a.str)}')">
-      <span class="node-icon">▶</span>
-      <span class="node-label">${escH(a.str)}</span>
-      <span class="node-type tag-anim">ANIM</span>
-    </div>`;
   }
 
-  html += `<div class="tree-group-header">Textures (${p.textureRefs.length})</div>`;
-  for (const t of p.textureRefs) {
-    const name = t.str.split('\\').pop();
-    html += `<div class="tree-node" onclick="switchTab('textures')">
-      <span class="node-icon">🖼</span>
-      <span class="node-label">${escH(name)}</span>
-      <span class="node-type tag-tex">TEX</span>
-    </div>`;
+  const vecBest = Array.from({length:8}, ()=>new Float64Array(3));
+
+  if(records.length === 0){
+    // All silence — return zero coefs
+    return new Int16Array(16);
   }
 
-  html += `<div class="tree-group-header">Controls (${p.controlNames.length})</div>`;
-  for (const c of p.controlNames) {
-    html += `<div class="tree-node">
-      <span class="node-icon">◈</span>
-      <span class="node-label">${escH(c.str)}</span>
-      <span class="node-type tag-ctrl">CTRL</span>
-    </div>`;
+  // Average the records to get an initial vector
+  const avg = new Float64Array([1.0,0.0,0.0]);
+  for(const r of records){
+    const tmp = new Float64Array(3);
+    matrixFilter(r, tmp);
+    for(let y=1;y<=2;y++) avg[y] += tmp[y];
   }
+  for(let y=1;y<=2;y++) avg[y] /= records.length;
+  mergeFinishRecord(avg, vecBest[0]);
 
-  tree.innerHTML = html;
-}
-
-function renderOverview() {
-  const p = gParsed;
-  document.getElementById('welcomeMsg').classList.add('hidden');
-  const div = document.getElementById('overviewContent');
-  div.classList.remove('hidden');
-
-  div.innerHTML = `
-    <div class="panel-grid">
-      <div class="info-panel">
-        <div class="info-panel-header">File Header</div>
-        <div class="info-panel-body">
-          <div class="kv-row"><span class="kv-key">Magic</span><span class="kv-val highlight">${escH(p.magic)}\0</span></div>
-          <div class="kv-row"><span class="kv-key">Valid</span><span class="kv-val ${p.isValid ? 'highlight' : 'warn'}">${p.isValid ? '✓ YES' : '✗ NO'}</span></div>
-          <div class="kv-row"><span class="kv-key">Version</span><span class="kv-val">0x${p.version.toString(16).toUpperCase().padStart(8,'0')}</span></div>
-          <div class="kv-row"><span class="kv-key">File Size</span><span class="kv-val">${p.fileSize} bytes</span></div>
-          <div class="kv-row"><span class="kv-key">Flags</span><span class="kv-val">0x${p.flags.toString(16).toUpperCase().padStart(4,'0')}</span></div>
-        </div>
-      </div>
-      <div class="info-panel">
-        <div class="info-panel-header">Content Summary</div>
-        <div class="info-panel-body">
-          <div class="kv-row"><span class="kv-key">Animations</span><span class="kv-val highlight">${p.animNames.length}</span></div>
-          <div class="kv-row"><span class="kv-key">Texture Refs</span><span class="kv-val warn">${p.textureRefs.length}</span></div>
-          <div class="kv-row"><span class="kv-key">Control Params</span><span class="kv-val">${p.controlNames.length}</span></div>
-          <div class="kv-row"><span class="kv-key">Total Strings</span><span class="kv-val">${p.allStrings.length}</span></div>
-          <div class="kv-row"><span class="kv-key">File</span><span class="kv-val">${escH(gFileName)}</span></div>
-        </div>
-      </div>
-    </div>
-
-    ${p.mainTexturePath ? `
-    <div class="info-panel" style="margin-bottom:16px">
-      <div class="info-panel-header">Primary Texture Reference</div>
-      <div class="info-panel-body">
-        <div class="texture-path">${escH(p.mainTexturePath)}</div>
-        <div class="texture-note">
-          This is the texture sheet this panel uses. It is a <code>.bcstm/.bclim</code> texture packed in 
-          the game's <code>romfs</code> or <code>arc</code> container. See the <b>Import Guide</b> tab 
-          for instructions on replacing it.
-        </div>
-      </div>
-    </div>` : ''}
-
-    <div class="info-panel">
-      <div class="info-panel-header">Known Animation IDs</div>
-      <div class="info-panel-body">
-        ${p.animNames.map(a => `<span class="string-chip tag-anim">${escH(a.str)}</span>`).join('')}
-      </div>
-    </div>
-  `;
-}
-
-const ANIM_DESCRIPTIONS = {
-  'DEFAULT': 'Default / idle state',
-  'FADE_IN': 'Panel fades into view',
-  'FADE_OUT': 'Panel fades out',
-  'DISABLE': 'Disabled / greyed state',
-  'DECIDE': 'Button press / confirm animation',
-  'INVISIBLE': 'Fully hidden state',
-  'SKIP': 'Skip button appears',
-  'SKIP_OUT': 'Skip button disappears',
-  'BACKLOG_IN': 'Backlog mode enter',
-  'BACKLOG_OUT': 'Backlog mode exit',
-  'EXAM_IN': 'Examination mode enter',
-  'EXAM_OUT': 'Examination mode exit',
-  'Start': 'Initial startup state',
-  'Process0': 'Processing / transition loop',
-  'a_panel00_icon': 'Panel icon sub-animation',
-  'a_panel00_base': 'Panel base sub-animation',
-};
-
-function renderAnimations() {
-  const p = gParsed;
-  const div = document.getElementById('animContent');
-
-  let html = `
-    <div class="anim-preview">
-      <div class="anim-canvas-wrap">
-        <canvas id="animCanvas" width="200" height="150"></canvas>
-      </div>
-      <div class="anim-controls">
-        <div style="font-size:11px;color:var(--accent);margin-bottom:12px;letter-spacing:1px">ANIMATION PREVIEW</div>
-        <div class="ctrl-row">
-          <span class="ctrl-label">FRAME</span>
-          <input type="range" class="ctrl-slider" id="frameSlider" min="0" max="100" value="0" oninput="setFrame(this.value)">
-          <span class="ctrl-val" id="frameVal">0</span>
-        </div>
-        <div class="ctrl-row">
-          <span class="ctrl-label">SPEED</span>
-          <input type="range" class="ctrl-slider" id="speedSlider" min="1" max="10" value="3">
-          <span class="ctrl-val">×</span>
-        </div>
-        <div class="ctrl-row" style="gap:6px;margin-top:8px">
-          <button class="play-btn" onclick="toggleAnim()">▶ PLAY</button>
-          <button class="play-btn" onclick="resetAnim()" style="border-color:var(--dim);color:var(--dim)">■ STOP</button>
-        </div>
-        <div style="font-size:9px;color:var(--dim);margin-top:10px;line-height:1.6">
-          ℹ Actual UV animation data requires the companion texture.<br>
-          Preview shows frame timing/structure only.
-        </div>
-      </div>
-    </div>
-    <div class="notice">
-      <strong>⚠ TEXTURE NOT EMBEDDED</strong>
-      The .gui file stores <em>animation curves and control parameters</em> only — not pixel data. 
-      Textures are separate .bclim files in the game archive. Load the texture alongside this .gui 
-      to see full rendered output.
-    </div>
-  `;
-
-  for (const a of p.animNames) {
-    const desc = ANIM_DESCRIPTIONS[a.str] || 'UI animation sequence';
-    html += `
-      <div class="anim-card" id="anim_${escH(a.str).replace(/[^a-z0-9]/gi,'_')}">
-        <div class="anim-icon">▶</div>
-        <div class="anim-info">
-          <div class="anim-name">${escH(a.str)}</div>
-          <div class="anim-meta">${desc} · offset 0x${a.offset.toString(16).toUpperCase()}</div>
-        </div>
-        <button class="play-btn" onclick="previewAnim('${escH(a.str)}')">PREVIEW</button>
-      </div>`;
-  }
-
-  div.innerHTML = html;
-  startCanvasIdle();
-}
-
-function renderTextures() {
-  const p = gParsed;
-  const div = document.getElementById('texContent');
-
-  if (!p.textureRefs.length) {
-    div.innerHTML = `<div class="welcome"><div class="welcome-icon">🖼</div><div class="welcome-title">NO TEXTURE REFS FOUND</div></div>`;
-    return;
-  }
-
-  let html = `
-    <div class="notice">
-      <strong>TEXTURE IMPORT / EXPORT</strong>
-      The .gui references textures by path. The actual pixel data lives in <code>.bclim</code> 
-      files inside the game's romfs. To replace a texture: extract with Kuriimu2 / CTPK tool, 
-      edit, re-pack, and replace in the archive. See the <b>Import Guide</b> tab for full steps.
-    </div>`;
-
-  for (const t of p.textureRefs) {
-    const parts = t.str.split('\\');
-    const filename = parts[parts.length - 1];
-    html += `
-      <div class="texture-ref">
-        <div class="texture-path">${escH(t.str)}</div>
-        <div style="display:flex;gap:12px;margin-top:8px;font-size:10px">
-          <span style="color:var(--dim)">Filename: <span style="color:var(--text)">${escH(filename)}</span></span>
-          <span style="color:var(--dim)">String offset: <span style="color:var(--accent)">0x${t.offset.toString(16).toUpperCase()}</span></span>
-        </div>
-        <div class="texture-note" style="margin-top:8px">
-          Look for <code>${escH(filename)}.bclim</code> or <code>${escH(filename)}.ctpk</code> in 
-          <code>romfs/UI/0_system/03_panel/tex/</code>
-        </div>
-      </div>`;
-  }
-
-  div.innerHTML = html;
-}
-
-function renderStrings() {
-  const p = gParsed;
-  const div = document.getElementById('strContent');
-
-  const groups = [
-    { label: 'Animation / Node Names', items: p.animNames, cls: 'tag-anim' },
-    { label: 'Texture References', items: p.textureRefs, cls: 'tag-tex' },
-    { label: 'Control Parameters', items: p.controlNames, cls: 'tag-ctrl' },
-    { label: 'Misc Strings', items: p.miscStrings, cls: '' },
-  ];
-
-  let html = '';
-  for (const g of groups) {
-    if (!g.items.length) continue;
-    html += `
-      <div class="info-panel" style="margin-bottom:14px">
-        <div class="info-panel-header">${g.label} <span class="count">${g.items.length}</span></div>
-        <div class="info-panel-body">
-          ${g.items.map(s => `<span class="string-chip ${g.cls}" title="offset: 0x${s.offset.toString(16).toUpperCase()}">${escH(s.str)}</span>`).join('')}
-        </div>
-      </div>`;
-  }
-  div.innerHTML = html;
-}
-
-function renderHex() {
-  if (!gBytes) return;
-  const bytes = new Uint8Array(gBytes);
-  const div = document.getElementById('hexContent');
-  const limit = Math.min(bytes.length, 0x300); // show first 768 bytes
-
-  let html = `<div class="hex-viewer">`;
-  html += `<div style="font-size:9px;color:var(--dim);margin-bottom:8px;letter-spacing:1px">
-    Showing first ${limit} / ${bytes.length} bytes &nbsp;·&nbsp; 
-    <span style="color:var(--accent3)">■</span> printable ASCII &nbsp;·&nbsp; click byte to highlight
-  </div>`;
-
-  for (let row = 0; row < limit; row += 16) {
-    const addr = row.toString(16).toUpperCase().padStart(6, '0');
-    let byteHtml = '';
-    let asciiHtml = '';
-    for (let col = 0; col < 16 && row + col < limit; col++) {
-      const b = bytes[row + col];
-      const hex = b.toString(16).toUpperCase().padStart(2, '0');
-      const isPrint = b >= 0x20 && b < 0x7f;
-      const cls = b === 0 ? 'zero' : isPrint ? 'ascii-printable' : 'nonzero';
-      byteHtml += `<span class="hex-byte ${cls}" onclick="hlByte(${row+col})">${hex}</span>`;
-      asciiHtml += isPrint ? String.fromCharCode(b) : '·';
+  // K-means style clustering: double clusters three times (1→2→4→8)
+  let exp = 1;
+  for(let w=0;w<3;w++){
+    // Split each existing centroid
+    const vec2 = new Float64Array([0.0,-1.0,0.0]);
+    for(let i=0;i<exp;i++){
+      for(let y=0;y<=2;y++) vecBest[exp+i][y] = 0.01*vec2[y] + vecBest[i][y];
     }
-    html += `<div class="hex-row">
-      <span class="hex-addr">${addr}</span>
-      <span class="hex-bytes">${byteHtml}</span>
-      <span class="hex-ascii">${escH(asciiHtml)}</span>
-    </div>`;
+    exp = 1 << (++w);  // 1→2→4→8
+    filterRecords(vecBest, exp, records);
   }
+  filterRecords(vecBest, 8, records);
 
-  if (bytes.length > limit) {
-    html += `<div style="padding:8px 0;font-size:10px;color:var(--dim)">... ${bytes.length - limit} more bytes not shown</div>`;
+  // Convert float predictors back to Q11 int16 coefs
+  const out = new Int16Array(16);
+  for(let z=0;z<8;z++){
+    let d = -vecBest[z][1] * 2048.0;
+    out[z*2]   = d>32767?32767 : d<-32768?-32768 : Math.round(d)|0;
+    d = -vecBest[z][2] * 2048.0;
+    out[z*2+1] = d>32767?32767 : d<-32768?-32768 : Math.round(d)|0;
   }
-
-  html += '</div>';
-  div.innerHTML = html;
+  return out;
 }
 
-function renderGuide() {
-  const tab = document.getElementById('tabGuide');
-  tab.innerHTML = `
-    <div class="info-panel" style="margin-bottom:14px">
-      <div class="info-panel-header">What Is a .gui File?</div>
-      <div class="info-panel-body">
-        <p style="font-size:11px;line-height:1.8;color:var(--text)">
-          The <code>.gui</code> format in <em>Ace Attorney: Spirit of Justice</em> (3DS) is Capcom's 
-          proprietary UI layout format. It stores:<br><br>
-          • <strong>Animation sequences</strong> — named states like <code>FADE_IN</code>, <code>DECIDE</code>, with keyframe curves controlling position, scale, opacity<br>
-          • <strong>Texture references</strong> — paths to <code>.bclim</code> / <code>.ctpk</code> texture sheets<br>
-          • <strong>Control parameters</strong> — transform, blend, UV, visibility flags<br>
-          • <strong>Node hierarchy</strong> — parent/child UI element tree<br><br>
-          Textures are <em>not embedded</em> — they are separate files referenced by path.
-        </p>
-      </div>
-    </div>
+// ─── LPC helper functions ─────────────────────────────────────────────────────
 
-    <div class="info-panel" style="margin-bottom:14px">
-      <div class="info-panel-header">🖼 How To Extract & Replace Textures</div>
-      <div class="info-panel-body" style="font-size:11px;line-height:1.9;color:var(--text)">
-        <strong style="color:var(--accent2)">Step 1 — Dump the ROM</strong><br>
-        Use <code>Citra</code> or <code>GodMode9</code> (on real hardware) to extract the romfs 
-        of the game. The .gui and .bclim files will be inside.<br><br>
-
-        <strong style="color:var(--accent2)">Step 2 — Locate the texture</strong><br>
-        Based on the path in the .gui file (e.g. <code>UI\\0_system\\03_panel\\tex\\panel00_jpn_BM_NOMIP_HQ</code>), 
-        find the corresponding <code>.bclim</code> or <code>.ctpk</code> file in your romfs dump.<br><br>
-
-        <strong style="color:var(--accent2)">Step 3 — Open with Kuriimu2</strong><br>
-        <a href="https://github.com/FanTranslatorsInternational/Kuriimu2" target="_blank" style="color:var(--accent)">Kuriimu2</a> 
-        is the go-to tool for 3DS Capcom image formats. It can open <code>.bclim</code> files, 
-        export as PNG, reimport an edited PNG, and save the modified <code>.bclim</code>.<br><br>
-
-        <strong style="color:var(--accent2)">Step 4 — Replace in archive</strong><br>
-        Use <a href="https://github.com/xdanieldzd/Scarlet" target="_blank" style="color:var(--accent)">Scarlet</a> 
-        or direct file replacement (if romfs is loose) to put the modified texture back. If the game 
-        uses a packed arc/xfs archive, use the matching packing tool.<br><br>
-
-        <strong style="color:var(--accent2)">Step 5 — Test in Citra</strong><br>
-        Run the game in Citra with the modified romfs to confirm your texture changes appear correctly.
-      </div>
-    </div>
-
-    <div class="info-panel" style="margin-bottom:14px">
-      <div class="info-panel-header">🎬 How To Modify Animations</div>
-      <div class="info-panel-body" style="font-size:11px;line-height:1.9;color:var(--text)">
-        The .gui binary format has no official editor. Options:<br><br>
-
-        <strong style="color:var(--accent2)">Hex editing (basic)</strong><br>
-        Float values (position, scale, opacity at keyframes) can be patched in a hex editor. 
-        Use this viewer's <b>Hex</b> tab to locate float clusters, then edit in 
-        <code>HxD</code> or <code>ImHex</code>. The <code>f32</code> values at the float 
-        clusters (shown in the Hex tab with green highlighting) are keyframe data.<br><br>
-
-        <strong style="color:var(--accent2)">Script/tool approach</strong><br>
-        Write a Python script using <code>struct.unpack</code> to parse the offset table 
-        at the start of the file (the array of <code>u32</code> offsets starting around 0x90), 
-        walk to each node, and patch keyframe values. Export with the same byte layout.<br><br>
-
-        <strong style="color:var(--accent2)">Animation IDs</strong><br>
-        The string IDs (DEFAULT, FADE_IN, etc.) are looked up at runtime by the game engine. 
-        You can reuse an existing ID to repurpose an animation slot.
-      </div>
-    </div>
-
-    <div class="info-panel" style="margin-bottom:14px">
-      <div class="info-panel-header">🔧 Useful Tools</div>
-      <div class="info-panel-body" style="font-size:11px;line-height:2">
-        <div class="kv-row"><span class="kv-key">Kuriimu2</span><span class="kv-val"><a href="https://github.com/FanTranslatorsInternational/Kuriimu2" target="_blank" style="color:var(--accent)">github.com/FanTranslatorsInternational/Kuriimu2</a></span></div>
-        <div class="kv-row"><span class="kv-key">Citra Emulator</span><span class="kv-val"><a href="https://citra-emu.org" target="_blank" style="color:var(--accent)">citra-emu.org</a></span></div>
-        <div class="kv-row"><span class="kv-key">ImHex</span><span class="kv-val"><a href="https://imhex.werwolv.net" target="_blank" style="color:var(--accent)">imhex.werwolv.net</a></span></div>
-        <div class="kv-row"><span class="kv-key">GodMode9</span><span class="kv-val">For dumping from real 3DS hardware</span></div>
-        <div class="kv-row"><span class="kv-key">3DSkit (Python)</span><span class="kv-val">3DS format parsing library</span></div>
-      </div>
-    </div>
-  `;
+function innerProductMerge(b){
+  const v = new Float64Array(3);
+  for(let i=0;i<=2;i++){
+    v[i] = 0;
+    for(let x=0;x<14;x++) v[i] -= (b[x]||0) * (x>=i ? b[x-i] : 0);
+  }
+  return v;
 }
 
-// ─── ANIMATION PREVIEW CANVAS ───────────────────────────────────────────────
-function startCanvasIdle() {
-  const canvas = document.getElementById('animCanvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  let t = 0;
-  function draw() {
-    ctx.fillStyle = '#050810';
-    ctx.fillRect(0, 0, 200, 150);
-
-    // Grid
-    ctx.strokeStyle = 'rgba(30,45,64,0.8)';
-    ctx.lineWidth = 0.5;
-    for (let x = 0; x < 200; x += 20) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 150); ctx.stroke();
+function outerProductMerge(b){
+  // mtx[1..2][1..2]
+  const mtx = [[],[new Float64Array(3)],[new Float64Array(3)]];
+  for(let x=1;x<=2;x++)
+    for(let y=1;y<=2;y++){
+      mtx[x][y]=0;
+      for(let z=0;z<14;z++) mtx[x][y] += (z>=x?b[z-x]:0) * (z>=y?b[z-y]:0);
     }
-    for (let y = 0; y < 150; y += 20) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(200, y); ctx.stroke();
+  return mtx;
+}
+
+function analyzeRanges(mtx, vi){
+  const rec = [0,0,0];
+  for(let x=1;x<=2;x++){
+    const val = Math.max(Math.abs(mtx[x][1]), Math.abs(mtx[x][2]));
+    if(val < Number.EPSILON) return true;
+    rec[x] = 1/val;
+  }
+  let mi=0;
+  for(let i=1;i<=2;i++){
+    for(let x=1;x<i;x++){
+      let t = mtx[x][i];
+      for(let y=1;y<x;y++) t -= mtx[x][y]*mtx[y][i];
+      mtx[x][i] = t;
+    }
+    let val=0;
+    for(let x=i;x<=2;x++){
+      let t = mtx[x][i];
+      for(let y=1;y<i;y++) t -= mtx[x][y]*mtx[y][i];
+      mtx[x][i]=t;
+      const q=Math.abs(t)*rec[x];
+      if(q>=val){val=q;mi=x;}
+    }
+    if(mi!==i){
+      for(let y=1;y<=2;y++){const t=mtx[mi][y];mtx[mi][y]=mtx[i][y];mtx[i][y]=t;}
+      rec[mi]=rec[i];
+    }
+    vi[i]=mi;
+    if(mtx[i][i]===0) return true;
+    if(i!==2){const t=1/mtx[i][i];for(let x=i+1;x<=2;x++) mtx[x][i]*=t;}
+  }
+  const mn=Math.min(Math.abs(mtx[1][1]),Math.abs(mtx[2][2]));
+  const mx=Math.max(Math.abs(mtx[1][1]),Math.abs(mtx[2][2]));
+  return mn/mx < 1e-10;
+}
+
+function bidirectionalFilter(mtx, vi, vo){
+  let x=0;
+  for(let i=1;i<=2;i++){
+    const idx=vi[i]; let t=vo[idx]; vo[idx]=vo[i];
+    if(x!==0) for(let y=x;y<=i-1;y++) t -= vo[y]*mtx[i][y];
+    else if(t!==0) x=i;
+    vo[i]=t;
+  }
+  for(let i=2;i>0;i--){
+    let t=vo[i];
+    for(let y=i+1;y<=2;y++) t -= vo[y]*mtx[i][y];
+    vo[i]=t/mtx[i][i];
+  }
+  vo[0]=1.0;
+}
+
+function quadraticMerge(v){
+  const v2=v[2], tmp=1-(v2*v2);
+  if(tmp===0) return true;
+  v[0]=(v[0]-(v2*v2))/tmp;
+  v[1]=(v[1]-(v[1]*v2))/tmp;
+  return Math.abs(v[1])>1.0;
+}
+
+function finishRecord(inp, out){
+  const v=new Float64Array(inp);
+  for(let z=1;z<=2;z++){
+    if(v[z]>=1)  v[z]=0.9999999999;
+    else if(v[z]<=-1) v[z]=-0.9999999999;
+  }
+  out[0]=1.0;
+  out[1]=(v[2]*v[1])+v[1];
+  out[2]=v[2];
+}
+
+function matrixFilter(src, dst){
+  const mtx=[[],[new Float64Array(3)],[new Float64Array(3)]];
+  mtx[2][0]=1.0;
+  for(let i=1;i<=2;i++) mtx[2][i]=-src[i];
+  for(let i=2;i>0;i--){
+    const val=1-(mtx[i][i]*mtx[i][i]);
+    for(let y=1;y<=i;y++) mtx[i-1][y]=((mtx[i][i]*mtx[i][y])+mtx[i][y])/val;
+  }
+  dst[0]=1.0;
+  for(let i=1;i<=2;i++){
+    dst[i]=0;
+    for(let y=1;y<=i;y++) dst[i]+=mtx[i][y]*dst[i-y];
+  }
+}
+
+function mergeFinishRecord(src, dst){
+  let val=src[0];
+  dst[0]=1.0;
+  const tmp=new Float64Array(3);
+  for(let i=1;i<=2;i++){
+    let v2=0;
+    for(let y=1;y<i;y++) v2+=dst[y]*src[i-y];
+    dst[i]= val>0 ? -(v2+src[i])/val : 0;
+    tmp[i]=dst[i];
+    for(let y=1;y<i;y++) dst[y]+=dst[i]*dst[i-y];
+    val*=1-(dst[i]*dst[i]);
+  }
+  finishRecord(tmp,dst);
+}
+
+function contrastVectors(s1, s2){
+  const val=(s2[2]*s2[1] + -s2[1])/(1-(s2[2]*s2[2]));
+  const v1 = s1[0]*s1[0] + s1[1]*s1[1] + s1[2]*s1[2];
+  const v2 = s1[0]*s1[1] + s1[1]*s1[2];
+  const v3 = s1[0]*s1[2];
+  return v1 + (2*val*v2) + (2*(-s2[1]*val + -s2[2])*v3);
+}
+
+function filterRecords(vecBest, exp, records){
+  for(let x=0;x<2;x++){
+    const cnt     = new Int32Array(exp);
+    const bufList = Array.from({length:exp},()=>new Float64Array(3));
+    for(const rec of records){
+      let idx=0, best=1e30;
+      for(let i=0;i<exp;i++){
+        const v=contrastVectors(vecBest[i],rec);
+        if(v<best){best=v;idx=i;}
+      }
+      cnt[idx]++;
+      const tmp=new Float64Array(3);
+      matrixFilter(rec,tmp);
+      for(let i=0;i<=2;i++) bufList[idx][i]+=tmp[i];
+    }
+    for(let i=0;i<exp;i++){
+      if(cnt[i]>0) for(let y=0;y<=2;y++) bufList[i][y]/=cnt[i];
+      mergeFinishRecord(bufList[i],vecBest[i]);
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DSP FRAME ENCODER — port of grok.c DSPEncodeFrame()
+//
+// pcmInOut: Int32Array[16]
+//   [0] = hist2 (second-oldest decoded sample, used as predictor history)
+//   [1] = hist1 (most recent decoded sample)
+//   [2..SPB+1] = input samples; overwritten with reconstructed values
+//
+// coefsFlat: Int16Array[16] = [c0a,c0b, c1a,c1b, ... c7a,c7b]
+//
+// Returns: Uint8Array[8] — one ADPCM frame
+// ══════════════════════════════════════════════════════════════════════════════
+function dspEncodeFrame(pcmInOut, sampleCount, coefsFlat){
+  const SPB = 14;
+
+  // Per-predictor state
+  const inS    = Array.from({length:8}, ()=>new Int32Array(SPB+2));
+  const outS   = Array.from({length:8}, ()=>new Int32Array(SPB));
+  const scale  = new Int32Array(8);
+  const dist   = new Float64Array(8);
+  let best=0;
+
+  for(let i=0;i<8;i++){
+    const c0 = coefsFlat[i*2];
+    const c1 = coefsFlat[i*2+1];
+
+    // Copy history into per-predictor buffer
+    inS[i][0] = pcmInOut[0];
+    inS[i][1] = pcmInOut[1];
+
+    // Find max deviation of raw prediction error (used to set initial scale)
+    let distance=0;
+    for(let s=0;s<sampleCount;s++){
+      const pred = ((pcmInOut[s+1]*c0) + (pcmInOut[s]*c1)) / 2048 | 0;
+      inS[i][s+2] = pred;
+      const err = pcmInOut[s+2] - pred;
+      const clamped = err>32767?32767 : err<-32768?-32768 : err;
+      if(Math.abs(clamped) > Math.abs(distance)) distance=clamped;
     }
 
-    // Animated panel rect
-    const alpha = (Math.sin(t * 0.05) + 1) / 2;
-    const scale = 0.8 + alpha * 0.2;
-    const w = 120 * scale, h = 40 * scale;
-    const x = (200 - w) / 2, y = (150 - h) / 2;
+    // Find minimum scale that fits the max error in [-8,7]
+    scale[i]=0;
+    while(scale[i]<=12 && (distance>7 || distance<-8)){
+      scale[i]++;
+      distance = distance/2 | 0;
+    }
+    scale[i] = scale[i]<=1 ? -1 : scale[i]-2;
 
-    ctx.save();
-    ctx.globalAlpha = 0.3 + alpha * 0.7;
-    ctx.strokeStyle = '#00d4ff';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, w, h);
+    // Iterative encoding: increase scale until all nibbles are in range
+    let index=0;
+    do {
+      scale[i]++;
+      dist[i]=0;
+      index=0;
 
-    // Inner glow
-    const grad = ctx.createLinearGradient(x, y, x, y + h);
-    grad.addColorStop(0, 'rgba(0,212,255,0.15)');
-    grad.addColorStop(1, 'rgba(0,212,255,0.03)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(x, y, w, h);
+      for(let s=0;s<sampleCount;s++){
+        // Predict
+        const pred = (inS[i][s]*c1) + (inS[i][s+1]*c0);
+        // Error in Q11
+        const errQ11 = ((pcmInOut[s+2]<<11) - pred) / 2048 | 0;
+        const sc = 1 << scale[i];
 
-    // Label
-    ctx.fillStyle = `rgba(0,212,255,${0.5 + alpha * 0.5})`;
-    ctx.font = '8px Share Tech Mono, monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('sys_panel00', 100, y + h / 2 + 3);
-    ctx.restore();
+        // Round away from zero (grok.c uses +/- 0.4999999)
+        let nib = errQ11>0
+          ? Math.floor(errQ11/sc + 0.4999999)
+          : Math.ceil (errQ11/sc - 0.4999999);
 
-    // Frame counter
-    ctx.fillStyle = 'rgba(74,96,112,0.8)';
-    ctx.font = '8px Share Tech Mono, monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(`F:${Math.floor(t % 60).toString().padStart(3,'0')}`, 4, 12);
+        // Clamp to signed 4-bit [-8, 7] and track overflow
+        if(nib < -8){
+          const ov = -8-nib; if(index<ov) index=ov; nib=-8;
+        } else if(nib > 7){
+          const ov = nib-7;  if(index<ov) index=ov; nib=7;
+        }
+        outS[i][s] = nib;
 
-    t++;
-    requestAnimationFrame(draw);
+        // Decode reconstructed sample
+        const rv = (pred + ((nib*sc)<<11) + 1024) >> 11;
+        inS[i][s+2] = rv>32767?32767 : rv<-32768?-32768 : rv;
+
+        // Accumulate squared error
+        const d = pcmInOut[s+2] - inS[i][s+2];
+        dist[i] += d*d;
+      }
+
+      // If overflow, bump scale proportionally (grok.c logic)
+      for(let x=index+8; x>256; x>>=1)
+        if(++scale[i]>=12){ scale[i]=11; break; }
+
+    } while(scale[i]<12 && index>1);
   }
-  draw();
+
+  // Choose predictor with least squared error
+  let minDist=Infinity;
+  for(let i=0;i<8;i++) if(dist[i]<minDist){minDist=dist[i];best=i;}
+
+  // Write reconstructed samples back into pcmInOut (for next frame's history)
+  for(let s=0;s<sampleCount;s++) pcmInOut[s+2] = inS[best][s+2];
+
+  // Pack ADPCM frame bytes
+  const adpcm = new Uint8Array(8);
+  adpcm[0] = (best<<4) | (scale[best]&0xF);
+  for(let y=0;y<7;y++)
+    adpcm[y+1] = ((outS[best][y*2]&0xF)<<4) | (outS[best][y*2+1]&0xF);
+
+  return adpcm;
 }
 
-function previewAnim(name) {
-  document.getElementById('frameSlider').value = 0;
-  document.getElementById('frameVal').textContent = '0';
-  setStatus(`Previewing animation: ${name}`);
-}
+// ══════════════════════════════════════════════════════════════════════════════
+// MONO ENCODER — drives DSPEncodeFrame frame by frame
+// Returns: Uint8Array of raw DSP-ADPCM data (no header), interleave-padded
+// ══════════════════════════════════════════════════════════════════════════════
+function encodeMono(pcm, coefs){
+  const SPB  = 14;
+  const BPF  = 8;
+  const INTERLEAVE = 0x100;
+  const fpB  = Math.floor(INTERLEAVE / BPF);  // frames per interleave block = 32
 
-function toggleAnim() { animPlaying = !animPlaying; }
-function resetAnim() { animPlaying = false; animFrame = 0; }
-function setFrame(v) { document.getElementById('frameVal').textContent = v; }
+  const frames     = Math.ceil(pcm.length / SPB);
+  const totalBlocks= Math.ceil(frames / fpB);
+  const outSize    = totalBlocks * INTERLEAVE;
+  const out        = new Uint8Array(outSize);  // zero-padded
 
-// ─── TABS ────────────────────────────────────────────────────────────────────
-function switchTab(name) {
-  activeTab = name;
-  const tabs = { overview:'tabOverview', animations:'tabAnimations', textures:'tabTextures',
-                  strings:'tabStrings', hex:'tabHex', guide:'tabGuide' };
-  for (const [k, id] of Object.entries(tabs)) {
-    document.getElementById(id).classList.toggle('hidden', k !== name);
+  // pcmInOut: [hist2, hist1, sample0..sample13]
+  const pcmInOut = new Int32Array(SPB+2);
+
+  for(let f=0;f<frames;f++){
+    const base  = f * SPB;
+    const count = Math.min(SPB, pcm.length - base);
+
+    // Fill sample slots; pad remainder with 0
+    for(let s=0;s<count;s++)  pcmInOut[s+2] = pcm[base+s];
+    for(let s=count;s<SPB;s++) pcmInOut[s+2] = 0;
+
+    // Encode frame
+    const adpcm = dspEncodeFrame(pcmInOut, count, coefs);
+
+    // Write to output (byte offset = frame * BPF)
+    out.set(adpcm, f * BPF);
+
+    // Roll history: after encoding, inS[best][SPB] and inS[best][SPB+1]
+    // are the last two reconstructed samples. DSPEncodeFrame wrote them
+    // back into pcmInOut[SPB] and pcmInOut[SPB+1] via the write-back loop.
+    // Actually pcmInOut[2..count+1] are the reconstructed samples.
+    // We need the last two as next frame's hist2, hist1.
+    pcmInOut[0] = pcmInOut[count];    // hist2 = second-last reconstructed
+    pcmInOut[1] = pcmInOut[count+1];  // hist1 = last reconstructed
   }
-  document.querySelectorAll('.tab').forEach((t, i) => {
-    const names = ['overview','animations','textures','strings','hex','guide'];
-    t.classList.toggle('active', names[i] === name);
-  });
-}
 
-function jumpToAnim(name) {
-  switchTab('animations');
-  const id = 'anim_' + name.replace(/[^a-z0-9]/gi,'_');
-  setTimeout(() => {
-    const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, 50);
+  return out;
 }
-
-// ─── EXPORTS ─────────────────────────────────────────────────────────────────
-function exportJSON() {
-  if (!gParsed) return;
-  const data = {
-    file: gFileName,
-    header: { magic: gParsed.magic, version: gParsed.version, fileSize: gParsed.fileSize },
-    animations: gParsed.animNames.map(a => ({ name: a.str, offset: a.offset })),
-    textures: gParsed.textureRefs.map(t => ({ path: t.str, offset: t.offset })),
-    controlParams: gParsed.controlNames.map(c => ({ name: c.str, offset: c.offset })),
-    allStrings: gParsed.allStrings.map(s => ({ str: s.str, offset: s.offset })),
-  };
-  download(JSON.stringify(data, null, 2), gFileName.replace('.gui','.json'), 'application/json');
-}
-
-function exportStrings() {
-  if (!gParsed) return;
-  const lines = gParsed.allStrings.map(s => `0x${s.offset.toString(16).toUpperCase().padStart(6,'0')}\t${s.str}`).join('\n');
-  download(lines, gFileName.replace('.gui','_strings.txt'), 'text/plain');
-}
-
-function exportAnimList() {
-  if (!gParsed) return;
-  const lines = gParsed.animNames.map(a => `${a.str}\t0x${a.offset.toString(16).toUpperCase()}`).join('\n');
-  download(lines, gFileName.replace('.gui','_animations.txt'), 'text/plain');
-}
-
-function exportTextureList() {
-  if (!gParsed) return;
-  const lines = gParsed.textureRefs.map(t => t.str).join('\n');
-  download(lines, gFileName.replace('.gui','_textures.txt'), 'text/plain');
-}
-
-function download(content, filename, type) {
-  const blob = new Blob([content], { type });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-// ─── UTILS ───────────────────────────────────────────────────────────────────
-function escH(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function setStatus(msg) { document.getElementById('statusText').textContent = msg; }
-function hlByte(i) {
-  document.querySelectorAll('.hex-byte').forEach(b => b.classList.remove('highlighted'));
-  const all = document.querySelectorAll('.hex-byte');
-  if (all[i]) all[i].classList.add('highlighted');
-  document.getElementById('statusOffset').textContent = `offset: 0x${i.toString(16).toUpperCase()}`;
-}
-
-// ─── AUTO-LOAD DEMO ──────────────────────────────────────────────────────────
-// Pre-render the guide tab on load
-renderGuide();
 </script>
 </body>
 </html>
