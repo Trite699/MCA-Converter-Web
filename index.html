@@ -64,7 +64,7 @@ audio{width:100%;border-radius:var(--r-md);}
 <body>
 <div class="wrap">
   <h1>MCA ↔ WAV Converter</h1>
-  <p class="sub">Capcom MADP · v3/v4/v5 · DSP-ADPCM · Nintendo-accurate LPC coef derivation</p>
+  <p class="sub">Capcom MADP · v3/v4/v5 · DSP-ADPCM · vgmstream decode · MCAConverter encode</p>
 
   <div class="card">
     <div class="card-title">Input file</div>
@@ -97,7 +97,7 @@ audio{width:100%;border-radius:var(--r-md);}
         <select id="version">
           <option value="3">v3 — RE Mercs 3D, SSF4 3D</option>
           <option value="4" selected>v4 — EX Troopers, AA5 (default)</option>
-          <option value="5">v5 — AA6, MH4U / Generations</option>
+          <option value="5">v5 — AA6, MH4U</option>
         </select>
       </div>
     </div>
@@ -141,736 +141,773 @@ audio{width:100%;border-radius:var(--r-md);}
 </div>
 
 <script>
-"use strict";
+// ─── State ────────────────────────────────────────────────────────────────────
+let fileData=null,fileExt="",fileName="",outBlob=null,outName="",parsedSampleRate=44100;
+const player=document.getElementById("player");
+document.getElementById("fileInput").addEventListener("change",e=>{const f=e.target.files[0];if(f)handleFile(f);});
+document.getElementById("btnDecode").addEventListener("click",decode);
+document.getElementById("btnEncode").addEventListener("click",encode);
+document.getElementById("btnDl").addEventListener("click",dlFile);
+player.addEventListener("timeupdate",handleTimeUpdate);
+document.getElementById("loopStart").addEventListener("input",updateLoopInfo);
+document.getElementById("loopEnd").addEventListener("input",updateLoopInfo);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// UI WIRING
-// ─────────────────────────────────────────────────────────────────────────────
-let fileData = null, fileExt = "", fileName = "", outBlob = null, outName = "", parsedSampleRate = 44100;
-const player = document.getElementById("player");
+function setStatus(msg,cls){document.getElementById("statusText").textContent=msg;const el=document.getElementById("status");el.className="status "+(cls||"");el.style.display="flex";}
+function setMeta(pairs){const g=document.getElementById("metaGrid");g.innerHTML=pairs.map(([l,v])=>`<div class="metric"><div class="metric-label">${l}</div><div class="metric-val">${v}</div></div>`).join("");g.style.display="grid";}
+function hex(n){return"0x"+(n>>>0).toString(16).toUpperCase();}
+function tick(){return new Promise(r=>setTimeout(r,20));}
+function baseName(n){return n.replace(/\.[^.]+$/,"");}
+function getLS(){return parseInt(document.getElementById("loopStart").value)||0;}
+function getLE(){return parseInt(document.getElementById("loopEnd").value)||0;}
+function getVer(){return parseInt(document.getElementById("version").value)||4;}
+function isLoopEnabled(){return document.getElementById("loopToggle").checked;}
+function updateLoopInfo(){const ls=getLS(),le=getLE(),sr=parsedSampleRate||44100;document.getElementById("playerLoopInfo").textContent=le>ls?`Loop: ${ls.toLocaleString()} → ${le.toLocaleString()} (${((le-ls)/sr).toFixed(2)}s)`:"No loop";}
 
-document.getElementById("fileInput").addEventListener("change", e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
-document.getElementById("btnDecode").addEventListener("click", decode);
-document.getElementById("btnEncode").addEventListener("click", encode);
-document.getElementById("btnDl").addEventListener("click", dlFile);
-player.addEventListener("timeupdate", handleTimeUpdate);
-document.getElementById("loopStart").addEventListener("input", updateLoopInfo);
-document.getElementById("loopEnd").addEventListener("input", updateLoopInfo);
-
-function setStatus(msg, cls) {
-  document.getElementById("statusText").textContent = msg;
-  const el = document.getElementById("status");
-  el.className = "status " + (cls || "");
-  el.style.display = "flex";
-}
-function setMeta(pairs) {
-  const g = document.getElementById("metaGrid");
-  g.innerHTML = pairs.map(([l, v]) => `<div class="metric"><div class="metric-label">${l}</div><div class="metric-val">${v}</div></div>`).join("");
-  g.style.display = "grid";
-}
-function hex(n) { return "0x" + (n >>> 0).toString(16).toUpperCase(); }
-function tick() { return new Promise(r => setTimeout(r, 20)); }
-function baseName(n) { return n.replace(/\.[^.]+$/, ""); }
-function getLS() { return parseInt(document.getElementById("loopStart").value) || 0; }
-function getLE() { return parseInt(document.getElementById("loopEnd").value) || 0; }
-function getVer() { return parseInt(document.getElementById("version").value) || 4; }
-function isLoopEnabled() { return document.getElementById("loopToggle").checked; }
-function updateLoopInfo() {
-  const ls = getLS(), le = getLE(), sr = parsedSampleRate || 44100;
-  document.getElementById("playerLoopInfo").textContent =
-    le > ls ? `Loop: ${ls.toLocaleString()} → ${le.toLocaleString()} (${((le - ls) / sr).toFixed(2)}s)` : "No loop";
-}
-
-async function handleFile(f) {
-  fileName = f.name; fileExt = f.name.split(".").pop().toLowerCase();
-  fileData = new Uint8Array(await f.arrayBuffer());
-  document.getElementById("dropText").textContent = f.name;
-  document.getElementById("playerCard").style.display = "none";
-  document.getElementById("dlCard").style.display = "none";
-  document.getElementById("status").style.display = "none";
-  document.getElementById("btnDecode").disabled = fileExt !== "mca";
-  document.getElementById("btnEncode").disabled = fileExt !== "wav";
-  if (fileExt === "mca") {
-    try {
-      const m = parseMCAHeader(fileData);
-      parsedSampleRate = m.sampleRate;
-      document.getElementById("loopStart").value = m.loopStart;
-      document.getElementById("loopEnd").value = m.loopEnd;
-      setMeta([["Version","v"+m.version],["Channels",m.channels],["Rate",m.sampleRate+" Hz"],
-               ["Samples",m.numSamples.toLocaleString()],["Loop start",m.loopStart.toLocaleString()],
-               ["Loop end",m.loopEnd.toLocaleString()],["Audio at",hex(m.startOffset)],["Head",hex(m.headSize)]]);
-      updateLoopInfo();
-      setStatus("MCA v" + m.version + " parsed — " + m.channels + "ch " + m.sampleRate + " Hz", "ok");
-    } catch(e) { setStatus("MCA parse error: " + e.message, "err"); }
-  } else if (fileExt === "wav") {
-    try {
-      const w = parseWAVHeader(fileData);
-      parsedSampleRate = w.sampleRate;
+async function handleFile(f){
+  fileName=f.name;fileExt=f.name.split(".").pop().toLowerCase();
+  fileData=new Uint8Array(await f.arrayBuffer());
+  document.getElementById("dropText").textContent=f.name;
+  document.getElementById("playerCard").style.display="none";
+  document.getElementById("dlCard").style.display="none";
+  document.getElementById("status").style.display="none";
+  document.getElementById("btnDecode").disabled=fileExt!=="mca";
+  document.getElementById("btnEncode").disabled=fileExt!=="wav";
+  if(fileExt==="mca"){
+    try{const m=parseMCAHeader(fileData);parsedSampleRate=m.sampleRate;
+      document.getElementById("loopStart").value=m.loopStart;
+      document.getElementById("loopEnd").value=m.loopEnd;
+      setMeta([
+        ["Version","v"+m.version],["Channels",m.channels],
+        ["Rate",m.sampleRate+" Hz"],["Samples",m.numSamples.toLocaleString()],
+        ["Loop start",m.loopStart.toLocaleString()],["Loop end",m.loopEnd.toLocaleString()],
+        ["Audio at",hex(m.startOffset)],["Head",hex(m.headSize)]
+      ]);
+      updateLoopInfo();setStatus("MCA v"+m.version+" parsed — "+m.channels+"ch "+m.sampleRate+" Hz","ok");
+    }catch(e){setStatus("MCA parse error: "+e.message,"err");}
+  } else if(fileExt==="wav"){
+    try{const w=parseWAVHeader(fileData);parsedSampleRate=w.sampleRate;
       setMeta([["Channels",w.channels],["Rate",w.sampleRate+" Hz"],["Bit depth",w.bitsPerSample+"b"],["Samples",w.numSamples.toLocaleString()]]);
-      updateLoopInfo();
-      setStatus("WAV loaded — " + w.channels + "ch " + w.sampleRate + " Hz", "ok");
-    } catch(e) { setStatus("WAV parse error: " + e.message, "err"); }
+      updateLoopInfo();setStatus("WAV loaded — "+w.channels+"ch "+w.sampleRate+" Hz","ok");
+    }catch(e){setStatus("WAV parse error: "+e.message,"err");}
   }
 }
 
-async function decode() {
-  setStatus("Decoding…", ""); await tick();
-  try {
-    const wav = mcaToWav(fileData);
-    const blob = new Blob([wav], { type: "audio/wav" });
-    const name = baseName(fileName) + ".wav";
-    outBlob = blob; outName = name;
-    player.src = URL.createObjectURL(blob);
-    document.getElementById("playerCard").style.display = "";
-    document.getElementById("playerFile").textContent = name;
-    updateLoopInfo(); showDl(name, wav.length);
-    setStatus("Decoded → " + name, "ok");
-  } catch(e) { setStatus("Decode error: " + e.message, "err"); console.error(e); }
+async function decode(){setStatus("Decoding…","");await tick();
+  try{const wav=mcaToWav(fileData);const blob=new Blob([wav],{type:"audio/wav"});const name=baseName(fileName)+".wav";
+    outBlob=blob;outName=name;player.src=URL.createObjectURL(blob);
+    document.getElementById("playerCard").style.display="";document.getElementById("playerFile").textContent=name;
+    updateLoopInfo();showDl(name,wav.length);setStatus("Decoded → "+name,"ok");
+  }catch(e){setStatus("Decode error: "+e.message,"err");}
 }
 
-async function encode() {
-  setStatus("Encoding… (LPC analysis, may take a moment)", ""); await tick();
-  try {
-    const mca = wavToMca(fileData, getLS(), getLE(), getVer());
-    const blob = new Blob([mca], { type: "application/octet-stream" });
-    const name = baseName(fileName) + ".mca";
-    outBlob = blob; outName = name;
-    document.getElementById("playerCard").style.display = "none";
-    showDl(name, mca.length);
-    setStatus("Encoded → " + name, "ok");
-  } catch(e) { setStatus("Encode error: " + e.message, "err"); console.error(e); }
+async function encode(){setStatus("Encoding… (LPC analysis, may take a moment)","");await tick();
+  try{const mca=wavToMca(fileData,getLS(),getLE(),getVer());const blob=new Blob([mca],{type:"application/octet-stream"});const name=baseName(fileName)+".mca";
+    outBlob=blob;outName=name;document.getElementById("playerCard").style.display="none";
+    showDl(name,mca.length);setStatus("Encoded → "+name,"ok");
+  }catch(e){setStatus("Encode error: "+e.message,"err");}
 }
 
-function showDl(name, bytes) {
-  document.getElementById("dlLabel").textContent = "Download " + name;
-  document.getElementById("dlMeta").textContent = name + " · " + (bytes / 1024).toFixed(1) + " KB";
-  document.getElementById("dlCard").style.display = "";
-}
-function dlFile() {
-  if (!outBlob) return;
-  const a = document.createElement("a"); a.href = URL.createObjectURL(outBlob); a.download = outName; a.click();
-}
-function handleTimeUpdate() {
-  if (!isLoopEnabled()) return;
-  const ls = getLS(), le = getLE(), sr = parsedSampleRate || 44100;
-  if (le > ls && player.currentTime * sr >= le) player.currentTime = ls / sr;
-}
+function showDl(name,bytes){document.getElementById("dlLabel").textContent="Download "+name;document.getElementById("dlMeta").textContent=name+" · "+(bytes/1024).toFixed(1)+" KB";document.getElementById("dlCard").style.display="";}
+function dlFile(){if(!outBlob)return;const a=document.createElement("a");a.href=URL.createObjectURL(outBlob);a.download=outName;a.click();}
+function handleTimeUpdate(){if(!isLoopEnabled())return;const ls=getLS(),le=getLE(),sr=parsedSampleRate||44100;if(le>ls&&player.currentTime*sr>=le)player.currentTime=ls/sr;}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MCA HEADER PARSER
+// ══════════════════════════════════════════════════════════════════════════════
+// MCA HEADER PARSER — vgmstream/src/meta/mca.c accurate
 //
-// MADP offset map:
-//   0x00  magic "MADP" (BE)
-//   0x04  u16LE  version (3, 4, 5)
-//   0x08  u8     channels
-//   0x0A  u16LE  interleave (always 0x100)
-//   0x0C  u32LE  num_samples
-//   0x10  u16LE  sample_rate
-//   0x14  u32LE  loop_start
-//   0x18  u32LE  loop_end
-//   0x1C  u16LE  head_size          (v4/v5 only)
-//   0x20  u32LE  data_size          (v3/v4)
-//   0x28  u16LE  coef_shift         (v4/v5)
-//   0x2C  u32LE  data_size          (v5 only)
+// Header layout (LE unless noted):
+//   0x00  u32  "MADP" magic
+//   0x04  u16  version
+//   0x06  u16  (padding / unknown)
+//   0x08  u8   channel_count
+//   0x09  u8   (unknown)
+//   0x0A  u16  interleave  (always 0x100 observed)
+//   0x0C  u32  num_samples
+//   0x10  u16  sample_rate
+//   0x12  u16  (unknown)
+//   0x14  u32  loop_start
+//   0x18  u32  loop_end    (>0 → has loop)
+//   0x1C  u16  head_size   (v4+; v3 derives it)
+//   0x1E  u16  (unknown)
+//   0x20  u32  data_size
+//   0x24  u32  (unknown)
+//   0x28  u16  coef_shift  (v4+; v3 = 0)
+//   0x2A  …   (rest of fixed header)
+//   0x30  …   coef blocks, each 0x30 bytes per channel
+//             coef block base = head_size - 0x30*channels + coef_shift*0x14
 //
-// Coef layout (all versions):
-//   coef_spacing = 0x30 bytes per channel
-//   coef_start   = head_size - (coef_spacing * channels)
-//   coef_base    = coef_start + coef_shift * 0x14
-//   coef[ch][i]  = s16LE at coef_base + ch*0x30 + i*2  (i=0..15, 8 pairs)
-//
-// Audio data always at: file_end - data_size
-// (For v3: head_size = file_size - data_size, so startOffset = head_size)
-// ─────────────────────────────────────────────────────────────────────────────
-function parseMCAHeader(buf) {
-  const dv = new DataView(buf.buffer, buf.byteOffset), len = buf.length;
+// For v3:  head_size = file_size - data_size  (no explicit field)
+//          start_offset = head_size
+//          coef_shift = 0
+// For v4+: head_size = read_16LE(0x1C)
+//          start_offset = file_size - data_size
+//          coef_shift = read_16LE(0x28)
+// ══════════════════════════════════════════════════════════════════════════════
+function parseMCAHeader(buf){
+  const dv=new DataView(buf.buffer,buf.byteOffset);
+  const len=buf.length;
 
-  if (String.fromCharCode(buf[0],buf[1],buf[2],buf[3]) !== "MADP")
-    throw new Error("Not a MADP/MCA file");
+  // Magic check "MADP"
+  if(buf[0]!==0x4D||buf[1]!==0x41||buf[2]!==0x44||buf[3]!==0x50)
+    throw new Error("Not a MADP/MCA file (bad magic)");
 
-  const version    = dv.getUint16(0x04, true);
-  const channels   = dv.getUint8(0x08);
-  const interleave = dv.getUint16(0x0A, true) || 0x100;
-  const numSamples = dv.getUint32(0x0C, true);
-  const sampleRate = dv.getUint16(0x10, true);
-  const loopStart  = dv.getUint32(0x14, true);
-  const loopEnd    = dv.getUint32(0x18, true);
+  const version   = dv.getUint16(0x04,true);
+  const channels  = dv.getUint8(0x08);
+  const interleave= dv.getUint16(0x0A,true)||0x100;
+  const numSamples= dv.getUint32(0x0C,true);
+  const sampleRate= dv.getUint16(0x10,true);
+  const loopStart = dv.getUint32(0x14,true);
+  const loopEnd   = dv.getUint32(0x18,true);
+  const dataSize  = dv.getUint32(0x20,true);
 
-  if (channels < 1 || channels > 8)   throw new Error("Bad channel count: " + channels);
-  if (sampleRate < 100 || sampleRate > 192000) throw new Error("Bad sample rate: " + sampleRate);
+  if(channels<1||channels>8) throw new Error("Bad channel count: "+channels);
+  if(sampleRate<100||sampleRate>192000) throw new Error("Bad sample rate: "+sampleRate);
+  if(dataSize===0||dataSize>len) throw new Error("Bad data_size "+hex(dataSize)+" (file "+hex(len)+")");
 
-  const CS = 0x30; // coef block size per channel
-  let headSize, dataSize, coefShift;
+  // Derive head_size, coef_shift, start_offset exactly as vgmstream does
+  const CS=0x30; // bytes per coef block
+  let headSize, coefShift, startOffset;
 
-  if (version <= 3) {
-    dataSize  = dv.getUint32(0x20, true);
-    headSize  = len - dataSize;   // derived — everything before audio
-    coefShift = 0;
-  } else if (version === 4) {
-    headSize  = dv.getUint16(0x1C, true);
-    dataSize  = dv.getUint32(0x20, true);   // v4: data_size @ 0x20
-    coefShift = dv.getUint16(0x28, true);
+  if(version<=3){
+    // v3: head_size implicit = file_size - data_size
+    headSize    = len - dataSize;
+    coefShift   = 0;
+    startOffset = headSize;
   } else {
-    // v5: ONLY difference from v4 is data_size lives at 0x2C, not 0x20
-    headSize  = dv.getUint16(0x1C, true);
-    dataSize  = dv.getUint32(0x2C, true);   // v5: data_size @ 0x2C
-    coefShift = dv.getUint16(0x28, true);
+    // v4+: explicit head_size and coef_shift
+    headSize    = dv.getUint16(0x1C,true);
+    coefShift   = dv.getUint16(0x28,true);
+    startOffset = len - dataSize;  // "usually head_size but not for some MH3U songs"
   }
 
-  const startOffset = len - dataSize;
-  const coefBase    = (headSize - CS * channels) + coefShift * 0x14;
+  // coef_start = head_size - CS*channels  (end of fixed header region before coef blocks)
+  // coef_offset = coef_start + coef_shift*0x14
+  const coefStart  = headSize - CS*channels;
+  const coefOffset = coefStart + coefShift*0x14;
 
-  if (dataSize === 0 || dataSize > len)
-    throw new Error("Bad data_size: " + hex(dataSize) + " (file: " + hex(len) + ")");
-  if (startOffset < 0 || startOffset >= len)
-    throw new Error("Audio start out of range: " + hex(startOffset));
-  if (coefBase < 0 || coefBase + CS * channels > startOffset)
-    throw new Error("Coef block out of range: " + hex(coefBase));
+  // Validate ranges
+  if(startOffset<0||startOffset>=len)
+    throw new Error("Audio start out of range: "+hex(startOffset));
+  if(coefOffset<0||coefOffset+CS*channels>startOffset)
+    throw new Error("Coef block out of range: "+hex(coefOffset));
 
-  // Read 8 coef pairs (16 × s16LE) per channel
+  return{version,channels,interleave,numSamples,sampleRate,
+         loopStart,loopEnd,headSize,coefOffset,startOffset,dataSize};
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MCA → WAV  (vgmstream-accurate)
+// ══════════════════════════════════════════════════════════════════════════════
+function mcaToWav(buf){
+  const m  = parseMCAHeader(buf);
+  const dv = new DataView(buf.buffer, buf.byteOffset);
+
+  // Read coef tables (LE int16, 16 values per channel, one block per channel)
   const coefs = [];
-  for (let ch = 0; ch < channels; ch++) {
+  for(let ch=0;ch<m.channels;ch++){
     const c = new Int16Array(16);
-    for (let i = 0; i < 16; i++) c[i] = dv.getInt16(coefBase + ch * CS + i * 2, true);
+    for(let i=0;i<16;i++)
+      c[i] = dv.getInt16(m.coefOffset + ch*0x30 + i*2, true);
     coefs.push(c);
   }
 
-  return { version, channels, interleave, numSamples, sampleRate, loopStart, loopEnd,
-           headSize, dataSize, startOffset, coefBase, coefs };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MCA → WAV
-// ─────────────────────────────────────────────────────────────────────────────
-function mcaToWav(buf) {
-  const m   = parseMCAHeader(buf);
-  const src = buf.slice(m.startOffset);
-  const pcm = decodeDSP(src, m.channels, m.numSamples, m.coefs, m.interleave);
+  // DSP-ADPCM decode with interleaved channel layout
+  const audioData = buf.slice(m.startOffset);
+  const pcm = decodeDSP(audioData, m.channels, m.numSamples, coefs, m.interleave);
   return buildWAV(pcm, m.channels, m.sampleRate);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DSP-ADPCM DECODER
+// ══════════════════════════════════════════════════════════════════════════════
+// DSP-ADPCM DECODER — vgmstream ngc_dsp_decoder.c accurate
 //
-// Frame = 8 bytes:
-//   byte 0     header: high nibble = coef index (0-7), low nibble = scale exp
-//   bytes 1-7  14 nibbles, high-nibble-first (even sample = high nibble)
+// Frame layout (8 bytes / 14 samples):
+//   byte 0:    header — low nibble = scale exponent, high nibble = coef index (0-7)
+//   bytes 1-7: 14 packed 4-bit signed nibbles (high then low within each byte)
 //
-// Data is channel-interleaved in blocks of `interleave` bytes.
-// Layout: [ch0 block][ch1 block][ch0 block][ch1 block]...
+// Sample formula:
+//   sample = ( nib*scale<<11 + 1024 + coef1*hist1 + coef2*hist2 ) >> 11
+//   clamped to [-32768, 32767]
 //
-// Decode per sample:
-//   scale  = 1 << (header & 0xF)
-//   ci     = (header >> 4) & 0x7
-//   nibble = sign_extend_4bit(raw_nibble)
-//   sample = clamp16( ((nibble*scale)<<11 + 1024 + c1*hist1 + c2*hist2) >> 11 )
-//
-// hist1/hist2 are PER-CHANNEL and must never be shared.
-// ─────────────────────────────────────────────────────────────────────────────
-function decodeDSP(src, channels, totalSamples, coefs, interleave) {
-  const SPB = 14;                          // samples per frame
-  const BPB = 8;                           // bytes per frame
+// Data is interleaved: interleave bytes of channel 0, then interleave bytes of
+// channel 1, etc., repeating in blocks.
+// ══════════════════════════════════════════════════════════════════════════════
+function decodeDSP(src, channels, totalSamples, coefs, interleave){
+  const SPB = 14;   // samples per frame
+  const BPB = 8;    // bytes per frame
   const fpB = Math.floor(interleave / BPB); // frames per interleave block
 
   const out   = new Int16Array(totalSamples * channels);
-  const hist1 = new Int32Array(channels);  // per-channel IIR history
+  const hist1 = new Int32Array(channels);
   const hist2 = new Int32Array(channels);
-  const done  = new Int32Array(channels);  // samples decoded per channel
+  const done  = new Int32Array(channels);
 
-  for (let block = 0; ; block++) {
-    // Check if all channels finished
-    let allDone = true;
-    for (let ch = 0; ch < channels; ch++) if (done[ch] < totalSamples) { allDone = false; break; }
-    if (allDone) break;
+  let block = 0;
+  for(;;){
+    // Check if all channels done
+    let any = false;
+    for(let ch=0;ch<channels;ch++) if(done[ch]<totalSamples){any=true;break;}
+    if(!any) break;
 
-    for (let ch = 0; ch < channels; ch++) {
-      if (done[ch] >= totalSamples) continue;
-      const blockBase = (block * channels + ch) * interleave;
-      if (blockBase >= src.length) break;
+    for(let ch=0;ch<channels;ch++){
+      if(done[ch]>=totalSamples) continue;
 
-      for (let f = 0; f < fpB && done[ch] < totalSamples; f++) {
-        const fBase = blockBase + f * BPB;
-        if (fBase >= src.length) break;
+      const blockBase = (block*channels + ch)*interleave;
+      if(blockBase >= src.length) break;
 
-        const hdr    = src[fBase];
-        const scale  = 1 << (hdr & 0xF);
-        const ci     = (hdr >> 4) & 0x7;
-        const c1     = coefs[ch][ci * 2];
-        const c2     = coefs[ch][ci * 2 + 1];
+      for(let f=0;f<fpB && done[ch]<totalSamples;f++){
+        const fOff = blockBase + f*BPB;
+        if(fOff >= src.length) break;
 
-        for (let s = 0; s < SPB && done[ch] < totalSamples; s++) {
-          const bIdx = fBase + 1 + (s >> 1);
-          if (bIdx >= src.length) break;
+        const hdr   = src[fOff];
+        const scale = 1 << (hdr & 0xF);
+        const ci    = (hdr >> 4) & 0x7;
+        const c1    = coefs[ch][ci*2];
+        const c2    = coefs[ch][ci*2+1];
 
-          // High nibble = even sample index, low nibble = odd
-          const raw    = (s & 1) ? (src[bIdx] & 0xF) : ((src[bIdx] >> 4) & 0xF);
-          const nibble = raw >= 8 ? raw - 16 : raw; // sign-extend from 4 bits
+        for(let s=0;s<SPB && done[ch]<totalSamples;s++){
+          const byteIdx = fOff + 1 + (s>>1);
+          if(byteIdx >= src.length) break;
 
-          // Nintendo DSP-ADPCM IIR predictor
-          let smp = (((nibble * scale) << 11) + 1024 + c1 * hist1[ch] + c2 * hist2[ch]) >> 11;
+          // High nibble for even samples, low nibble for odd
+          const rawNib = (s&1) ? (src[byteIdx]&0xF) : ((src[byteIdx]>>4)&0xF);
+          // Sign-extend 4-bit value
+          const nib = rawNib >= 8 ? rawNib-16 : rawNib;
+
+          let smp = (((nib * scale) << 11) + 1024 + c1*hist1[ch] + c2*hist2[ch]) >> 11;
           smp = smp > 32767 ? 32767 : smp < -32768 ? -32768 : smp;
 
           hist2[ch] = hist1[ch];
           hist1[ch] = smp;
-          out[done[ch] * channels + ch] = smp;
+          out[done[ch]*channels + ch] = smp;
           done[ch]++;
         }
       }
     }
 
-    if ((block + 1) * channels * interleave >= src.length) break;
+    block++;
+    if(block*channels*interleave >= src.length) break;
   }
-
   return out;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WAV PARSER
-// ─────────────────────────────────────────────────────────────────────────────
-function parseWAVHeader(buf) {
-  const dv = new DataView(buf.buffer, buf.byteOffset);
-  if (String.fromCharCode(buf[0],buf[1],buf[2],buf[3]) !== "RIFF") throw new Error("Not a RIFF WAV");
-  const channels      = dv.getUint16(22, true);
-  const sampleRate    = dv.getUint32(24, true);
-  const bitsPerSample = dv.getUint16(34, true);
-  if (bitsPerSample !== 16) throw new Error("Only 16-bit PCM WAV supported");
-  let off = 12;
-  while (off < buf.length - 8) {
+// ══════════════════════════════════════════════════════════════════════════════
+// WAV BUILDER / PARSER
+// ══════════════════════════════════════════════════════════════════════════════
+function buildWAV(pcm, channels, sampleRate){
+  const dataBytes = pcm.length * 2;
+  const ab  = new ArrayBuffer(44 + dataBytes);
+  const dv  = new DataView(ab);
+  const ws  = (o,s)=>{for(let i=0;i<s.length;i++) dv.setUint8(o+i,s.charCodeAt(i));};
+  ws(0,"RIFF"); dv.setUint32(4,36+dataBytes,true); ws(8,"WAVE");
+  ws(12,"fmt "); dv.setUint32(16,16,true); dv.setUint16(20,1,true);
+  dv.setUint16(22,channels,true);
+  dv.setUint32(24,sampleRate,true);
+  dv.setUint32(28,sampleRate*channels*2,true);
+  dv.setUint16(32,channels*2,true); dv.setUint16(34,16,true);
+  ws(36,"data"); dv.setUint32(40,dataBytes,true);
+  new Int16Array(ab,44).set(pcm);
+  return new Uint8Array(ab);
+}
+
+function parseWAVHeader(buf){
+  const dv=new DataView(buf.buffer,buf.byteOffset);
+  if(buf[0]!==0x52||buf[1]!==0x49||buf[2]!==0x46||buf[3]!==0x46)
+    throw new Error("Not a RIFF WAV");
+  const channels    = dv.getUint16(22,true);
+  const sampleRate  = dv.getUint32(24,true);
+  const bitsPerSample=dv.getUint16(34,true);
+  if(bitsPerSample!==16) throw new Error("Only 16-bit PCM WAV supported");
+  // Scan for 'data' chunk
+  let off=12;
+  while(off<buf.length-8){
     const id = String.fromCharCode(buf[off],buf[off+1],buf[off+2],buf[off+3]);
-    const sz = dv.getUint32(off + 4, true);
-    if (id === "data") return { channels, sampleRate, bitsPerSample,
-                                numSamples: Math.floor(sz / (channels * 2)),
-                                dataOffset: off + 8, dataSize: sz };
-    off += 8 + sz + (sz & 1);
+    const sz = dv.getUint32(off+4,true);
+    if(id==="data") return{channels,sampleRate,bitsPerSample,
+      numSamples:Math.floor(sz/(channels*2)),dataOffset:off+8,dataSize:sz};
+    off += 8 + sz + (sz&1);
   }
   throw new Error("No data chunk in WAV");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WAV BUILDER — 16-bit PCM RIFF
-// ─────────────────────────────────────────────────────────────────────────────
-function buildWAV(pcm, channels, sampleRate) {
-  const db = pcm.length * 2, ab = new ArrayBuffer(44 + db), dv = new DataView(ab);
-  const ws = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
-  ws(0,"RIFF"); dv.setUint32(4, 36 + db, true); ws(8,"WAVE");
-  ws(12,"fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
-  dv.setUint16(22, channels, true); dv.setUint32(24, sampleRate, true);
-  dv.setUint32(28, sampleRate * channels * 2, true); dv.setUint16(32, channels * 2, true);
-  dv.setUint16(34, 16, true); ws(36,"data"); dv.setUint32(40, db, true);
-  new Int16Array(ab, 44).set(pcm);
-  return new Uint8Array(ab);
-}
+// ══════════════════════════════════════════════════════════════════════════════
+// WAV → MCA ENCODER — faithful port of MCAConverter logic
+//
+// Header layout written (all LE):
+//   v3:
+//     0x00 "MADP"  0x04 version(u16)  0x06 0x0000
+//     0x08 channels(u8)  0x09 0x00  0x0A interleave(u16)
+//     0x0C numSamples(u32)  0x10 sampleRate(u16)  0x12 0x0000
+//     0x14 loopStart(u32)  0x18 loopEnd(u32)
+//     0x1C 0x0000  0x1E 0x0000
+//     0x20 dataSize(u32)  0x24..0x2F zeroed
+//     0x30 coef blocks (0x30 each)
+//     [audio data]
+//
+//   v4/v5 (MCAConverter-identical):
+//     same but:
+//     0x1C headSize(u16)
+//     0x28 coef_shift(u16) = 0
+//     [audio data appended after header]
+//
+// Coef block (0x30 bytes): 16×int16 coefs, then 8 bytes padding/history = 0x20+0x10
+// ══════════════════════════════════════════════════════════════════════════════
+function wavToMca(buf, loopStart=0, loopEnd=0, version=4){
+  const{channels,sampleRate,numSamples,dataOffset,dataSize} = parseWAVHeader(buf);
+  const pcm = new Int16Array(buf.buffer, buf.byteOffset+dataOffset, dataSize>>1);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WAV → MCA ENCODER
-//
-// Header layout per version:
-//
-//   All versions:
-//     0x00  "MADP" magic (BE bytes)
-//     0x04  u16LE  version
-//     0x08  u8     channels
-//     0x0A  u16LE  interleave = 0x100
-//     0x0C  u32LE  num_samples
-//     0x10  u16LE  sample_rate
-//     0x14  u32LE  loop_start
-//     0x18  u32LE  loop_end
-//
-//   v3 only:
-//     0x20  u32LE  data_size
-//
-//   v4 only:
-//     0x1C  u16LE  head_size
-//     0x20  u32LE  data_size   ← v4 data_size position
-//     0x28  u16LE  coef_shift = 0
-//
-//   v5 only:
-//     0x1C  u16LE  head_size
-//     0x28  u16LE  coef_shift = 0
-//     0x2C  u32LE  data_size   ← v5 data_size position (NOT 0x20)
-//
-//   All versions:
-//     [coef blocks: channels × 0x30 bytes, placed directly before audio]
-//     [interleaved DSP-ADPCM audio data]
-//
-// With coef_shift = 0:
-//   coef_start = head_size - (0x30 * channels)
-//   (coef_base = coef_start + 0 = coef_start)
-// ─────────────────────────────────────────────────────────────────────────────
-function wavToMca(buf, loopStart = 0, loopEnd = 0, version = 4) {
-  const { channels, sampleRate, numSamples, dataOffset, dataSize } = parseWAVHeader(buf);
-  const pcm = new Int16Array(buf.buffer, buf.byteOffset + dataOffset, dataSize >> 1);
-
-  // Encode all channels
   const INTERLEAVE = 0x100;
-  const SPB = 14, BPB = 8;
-  const framesPerBlock = INTERLEAVE / BPB;                          // 32 frames per 0x100-byte block
-  const framesPerCh    = Math.ceil(numSamples / SPB);
-  const totalBlocks    = Math.ceil(framesPerCh / framesPerBlock);
-  const audioBytes     = totalBlocks * channels * INTERLEAVE;
+  const SPB        = 14;          // samples per DSP frame
+  const BPF        = 8;           // bytes per DSP frame
+  const CS         = 0x30;        // bytes per coef block
+  const FIXED_HDR  = 0x30;        // bytes before first coef block
 
-  // Derive LPC coefs and encode each channel into a flat (non-interleaved) buffer
-  const chCoefs = [], chFlat = [];
-  for (let ch = 0; ch < channels; ch++) {
+  // Compute sizes
+  const headSize   = FIXED_HDR + channels * CS;
+  const framesPerCh= Math.ceil(numSamples / SPB);
+  const totalBlocks= Math.ceil(framesPerCh / Math.floor(INTERLEAVE/BPF));
+  const audioBytes = totalBlocks * channels * INTERLEAVE;
+
+  // Per-channel: compute LPC coefs and encode to DSP-ADPCM
+  const chCoefs  = [];
+  const chEncoded= [];
+  for(let ch=0;ch<channels;ch++){
     const mono = new Int16Array(numSamples);
-    for (let s = 0; s < numSamples; s++) mono[s] = pcm[s * channels + ch];
-    const c = dspCorrelateCoefs(mono);
-    chCoefs.push(c);
-    chFlat.push(encodeMonoFlat(mono, c));
+    for(let s=0;s<numSamples;s++) mono[s] = pcm[s*channels+ch];
+    const coefs = dspCorrelateCoefs(mono);
+    chCoefs.push(coefs);
+    chEncoded.push(encodeMono(mono, coefs));
   }
 
-  // Build header
-  const CS       = 0x30;
-  const FIXED    = 0x30; // fixed header region before coef blocks
-  const headSize = FIXED + channels * CS;
-  const out      = new Uint8Array(headSize + audioBytes);
-  const dv       = new DataView(out.buffer);
+  // Allocate output buffer
+  const out = new Uint8Array(headSize + audioBytes);
+  const dv  = new DataView(out.buffer);
 
-  // Magic "MADP" as explicit bytes (BE)
+  // Write magic "MADP"
   out[0]=0x4D; out[1]=0x41; out[2]=0x44; out[3]=0x50;
-  dv.setUint16(0x04, version, true);
-  dv.setUint8(0x08, channels);
-  dv.setUint16(0x0A, INTERLEAVE, true);
-  dv.setUint32(0x0C, numSamples, true);
-  dv.setUint16(0x10, sampleRate, true);
-  dv.setUint32(0x14, loopStart, true);
-  dv.setUint32(0x18, loopEnd, true);
 
-  if (version <= 3) {
-    dv.setUint32(0x20, audioBytes, true);          // v3: data_size @ 0x20
-  } else if (version === 4) {
-    dv.setUint16(0x1C, headSize, true);            // head_size
-    dv.setUint32(0x20, audioBytes, true);          // v4: data_size @ 0x20
-    dv.setUint16(0x28, 0, true);                   // coef_shift = 0
+  // Version
+  dv.setUint16(0x04, version, true);
+
+  // Channel count
+  out[0x08] = channels;
+
+  // Interleave
+  dv.setUint16(0x0A, INTERLEAVE, true);
+
+  // numSamples
+  dv.setUint32(0x0C, numSamples, true);
+
+  // sampleRate
+  dv.setUint16(0x10, sampleRate, true);
+
+  // loopStart / loopEnd
+  dv.setUint32(0x14, loopStart, true);
+  dv.setUint32(0x18, loopEnd,   true);
+
+  if(version<=3){
+    // v3: data_size at 0x20, no explicit headSize/coefShift fields
+    dv.setUint32(0x20, audioBytes, true);
   } else {
-    // v5: data_size goes to 0x2C, NOT 0x20
-    dv.setUint16(0x1C, headSize, true);            // head_size
-    dv.setUint16(0x28, 0, true);                   // coef_shift = 0
-    dv.setUint32(0x2C, audioBytes, true);          // v5: data_size @ 0x2C
+    // v4/v5: headSize at 0x1C, dataSize at 0x20, coefShift=0 at 0x28
+    dv.setUint16(0x1C, headSize,   true);
+    dv.setUint32(0x20, audioBytes, true);
+    dv.setUint16(0x28, 0,          true);
   }
 
-  // Write coef blocks (coef_shift=0 → directly at headSize - CS*channels)
-  const coefStart = headSize - CS * channels;
-  for (let ch = 0; ch < channels; ch++)
-    for (let i = 0; i < 16; i++)
-      dv.setInt16(coefStart + ch * CS + i * 2, chCoefs[ch][i], true);
+  // Write coef blocks starting at FIXED_HDR (0x30)
+  for(let ch=0;ch<channels;ch++){
+    const base = FIXED_HDR + ch*CS;
+    for(let i=0;i<16;i++)
+      dv.setInt16(base + i*2, chCoefs[ch][i], true);
+    // Remaining 0x10 bytes of block (history etc.) left as zero
+  }
 
-  // Interleave channel data into output blocks
-  for (let b = 0; b < totalBlocks; b++) {
-    for (let ch = 0; ch < channels; ch++) {
+  // Interleave encoded audio channels into output
+  for(let b=0;b<totalBlocks;b++){
+    for(let ch=0;ch<channels;ch++){
+      const src  = chEncoded[ch];
       const srcOff = b * INTERLEAVE;
-      const dstOff = headSize + (b * channels + ch) * INTERLEAVE;
-      const slice  = chFlat[ch].subarray(srcOff, srcOff + INTERLEAVE);
-      out.set(slice, dstOff);
+      const dstOff = headSize + (b*channels + ch)*INTERLEAVE;
+      const count  = Math.min(INTERLEAVE, src.length - srcOff);
+      if(count>0) out.set(src.subarray(srcOff, srcOff+count), dstOff);
+      // remainder of interleave block stays zero (padding)
     }
   }
 
   return out;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LPC COEFFICIENT DERIVATION
-// Faithful JS port of dsp_encode.c / grok.c DSPCorrelateCoefs()
-// Derives 8 optimal second-order predictor pairs from the input signal
-// via autocorrelation + vector quantisation.
-// ─────────────────────────────────────────────────────────────────────────────
-function dspCorrelateCoefs(pcm) {
+// ══════════════════════════════════════════════════════════════════════════════
+// LPC COEF DERIVATION — port of grok.c DSPCorrelateCoefs()
+// Derives 8 optimal predictor coefficient pairs via autocorrelation / LPC.
+// Used by both Nintendo's official encoder and MCAConverter.
+// ══════════════════════════════════════════════════════════════════════════════
+function dspCorrelateCoefs(pcm){
   const numFrames = Math.ceil(pcm.length / 14);
-  const records   = [];
 
-  // Two-frame sliding window for autocorrelation
-  const win = [new Float64Array(14), new Float64Array(14)];
+  // Collect "records" — one per frame that has enough energy
+  const records = [];
+  const vec1  = new Float64Array(3);
+  const hist  = [new Float64Array(14), new Float64Array(14)];
 
-  for (let fi = 0; fi < numFrames; fi++) {
-    // Shift window
-    win[0].set(win[1]);
-    for (let z = 0; z < 14; z++) win[1][z] = fi * 14 + z < pcm.length ? pcm[fi * 14 + z] : 0;
+  for(let fi=0;fi<numFrames;fi++){
+    // Shift history buffer
+    for(let z=0;z<14;z++) hist[0][z] = hist[1][z];
+    for(let z=0;z<14;z++) hist[1][z] = (fi*14+z < pcm.length) ? pcm[fi*14+z] : 0;
 
-    const vec = innerProductMerge(win[1]);
-    if (Math.abs(vec[0]) <= 10.0) continue;
-
-    const mtx   = outerProductMerge(win[1]);
-    const vidxs = [0, 0, 0];
-    if (analyzeRanges(mtx, vidxs)) continue;
-
-    bidirectionalFilter(mtx, vidxs, vec);
-    if (quadraticMerge(vec)) continue;
-
-    const rec = new Float64Array(3);
-    finishRecord(vec, rec);
-    records.push(rec);
+    const v1 = innerProductMerge(hist[1]);
+    if(Math.abs(v1[0]) > 10.0){
+      const mtx = outerProductMerge(hist[1]);
+      const vidxs = [0,0,0];
+      if(!analyzeRanges(mtx, vidxs)){
+        bidirectionalFilter(mtx, vidxs, v1);
+        if(!quadraticMerge(v1)){
+          const rec = new Float64Array(3);
+          finishRecord(v1, rec);
+          records.push(rec);
+        }
+      }
+    }
   }
 
-  // Initialise 8 codebook vectors
-  const vecBest = Array.from({ length: 8 }, () => new Float64Array(3));
-  if (records.length === 0) return new Int16Array(16); // silence — return zero coefs
+  const vecBest = Array.from({length:8}, ()=>new Float64Array(3));
 
-  // Seed from mean of all records
-  const seed = new Float64Array([1.0, 0.0, 0.0]);
-  for (const r of records) {
+  if(records.length === 0){
+    // All silence — return zero coefs
+    return new Int16Array(16);
+  }
+
+  // Average the records to get an initial vector
+  const avg = new Float64Array([1.0,0.0,0.0]);
+  for(const r of records){
     const tmp = new Float64Array(3);
     matrixFilter(r, tmp);
-    for (let y = 1; y <= 2; y++) seed[y] += tmp[y];
+    for(let y=1;y<=2;y++) avg[y] += tmp[y];
   }
-  for (let y = 1; y <= 2; y++) seed[y] /= records.length;
-  mergeFinishRecord(seed, vecBest[0]);
+  for(let y=1;y<=2;y++) avg[y] /= records.length;
+  mergeFinishRecord(avg, vecBest[0]);
 
-  // Iterative splitting / VQ refinement
+  // K-means style clustering: double clusters three times (1→2→4→8)
   let exp = 1;
-  for (let w = 0; w < 3; w++) {
-    const perturb = new Float64Array([0.0, -1.0, 0.0]);
-    for (let i = 0; i < exp; i++)
-      for (let y = 0; y <= 2; y++) vecBest[exp + i][y] = 0.01 * perturb[y] + vecBest[i][y];
-    exp = 1 << (++w);
+  for(let w=0;w<3;w++){
+    // Split each existing centroid
+    const vec2 = new Float64Array([0.0,-1.0,0.0]);
+    for(let i=0;i<exp;i++){
+      for(let y=0;y<=2;y++) vecBest[exp+i][y] = 0.01*vec2[y] + vecBest[i][y];
+    }
+    exp = 1 << (++w);  // 1→2→4→8
     filterRecords(vecBest, exp, records);
   }
   filterRecords(vecBest, 8, records);
 
-  // Convert to Q11 fixed-point s16
+  // Convert float predictors back to Q11 int16 coefs
   const out = new Int16Array(16);
-  for (let z = 0; z < 8; z++) {
+  for(let z=0;z<8;z++){
     let d = -vecBest[z][1] * 2048.0;
-    out[z * 2]     = d > 32767 ? 32767 : d < -32768 ? -32768 : Math.round(d) | 0;
+    out[z*2]   = d>32767?32767 : d<-32768?-32768 : Math.round(d)|0;
     d = -vecBest[z][2] * 2048.0;
-    out[z * 2 + 1] = d > 32767 ? 32767 : d < -32768 ? -32768 : Math.round(d) | 0;
+    out[z*2+1] = d>32767?32767 : d<-32768?-32768 : Math.round(d)|0;
   }
   return out;
 }
 
-function innerProductMerge(b) {
+// ─── LPC helper functions ─────────────────────────────────────────────────────
+
+function innerProductMerge(b){
   const v = new Float64Array(3);
-  for (let i = 0; i <= 2; i++) {
+  for(let i=0;i<=2;i++){
     v[i] = 0;
-    for (let x = 0; x < 14; x++) v[i] -= (b[x] || 0) * (x >= i ? b[x - i] : 0);
+    for(let x=0;x<14;x++) v[i] -= (b[x]||0) * (x>=i ? b[x-i] : 0);
   }
   return v;
 }
 
-function outerProductMerge(b) {
-  // Returns a 3×3 matrix (1-indexed rows/cols)
-  const m = [[],[new Float64Array(3)],[new Float64Array(3)]];
-  for (let x = 1; x <= 2; x++)
-    for (let y = 1; y <= 2; y++) {
-      m[x][y] = 0;
-      for (let z = 0; z < 14; z++) m[x][y] += (z >= x ? b[z-x] : 0) * (z >= y ? b[z-y] : 0);
+function outerProductMerge(b){
+  // mtx[1..2][1..2]
+  const mtx = [[],[new Float64Array(3)],[new Float64Array(3)]];
+  for(let x=1;x<=2;x++)
+    for(let y=1;y<=2;y++){
+      mtx[x][y]=0;
+      for(let z=0;z<14;z++) mtx[x][y] += (z>=x?b[z-x]:0) * (z>=y?b[z-y]:0);
     }
-  return m;
+  return mtx;
 }
 
-function analyzeRanges(m, vi) {
-  const rec = [0, 0, 0];
-  for (let x = 1; x <= 2; x++) {
-    const val = Math.max(Math.abs(m[x][1]), Math.abs(m[x][2]));
-    if (val < Number.EPSILON) return true;
-    rec[x] = 1 / val;
+function analyzeRanges(mtx, vi){
+  const rec = [0,0,0];
+  for(let x=1;x<=2;x++){
+    const val = Math.max(Math.abs(mtx[x][1]), Math.abs(mtx[x][2]));
+    if(val < Number.EPSILON) return true;
+    rec[x] = 1/val;
   }
-  let mi = 0;
-  for (let i = 1; i <= 2; i++) {
-    for (let x = 1; x < i; x++) { let t = m[x][i]; for (let y = 1; y < x; y++) t -= m[x][y]*m[y][i]; m[x][i]=t; }
-    let best = 0;
-    for (let x = i; x <= 2; x++) {
-      let t = m[x][i]; for (let y = 1; y < i; y++) t -= m[x][y]*m[y][i]; m[x][i]=t;
-      const q = Math.abs(t) * rec[x]; if (q >= best) { best=q; mi=x; }
+  let mi=0;
+  for(let i=1;i<=2;i++){
+    for(let x=1;x<i;x++){
+      let t = mtx[x][i];
+      for(let y=1;y<x;y++) t -= mtx[x][y]*mtx[y][i];
+      mtx[x][i] = t;
     }
-    if (mi !== i) {
-      for (let y = 1; y <= 2; y++) { const t=m[mi][y]; m[mi][y]=m[i][y]; m[i][y]=t; }
-      rec[mi] = rec[i];
+    let val=0;
+    for(let x=i;x<=2;x++){
+      let t = mtx[x][i];
+      for(let y=1;y<i;y++) t -= mtx[x][y]*mtx[y][i];
+      mtx[x][i]=t;
+      const q=Math.abs(t)*rec[x];
+      if(q>=val){val=q;mi=x;}
     }
-    vi[i] = mi;
-    if (m[i][i] === 0) return true;
-    if (i !== 2) { const t = 1/m[i][i]; for (let x=i+1; x<=2; x++) m[x][i]*=t; }
+    if(mi!==i){
+      for(let y=1;y<=2;y++){const t=mtx[mi][y];mtx[mi][y]=mtx[i][y];mtx[i][y]=t;}
+      rec[mi]=rec[i];
+    }
+    vi[i]=mi;
+    if(mtx[i][i]===0) return true;
+    if(i!==2){const t=1/mtx[i][i];for(let x=i+1;x<=2;x++) mtx[x][i]*=t;}
   }
-  const mn = Math.min(Math.abs(m[1][1]), Math.abs(m[2][2]));
-  const mx = Math.max(Math.abs(m[1][1]), Math.abs(m[2][2]));
-  return mn / mx < 1e-10;
+  const mn=Math.min(Math.abs(mtx[1][1]),Math.abs(mtx[2][2]));
+  const mx=Math.max(Math.abs(mtx[1][1]),Math.abs(mtx[2][2]));
+  return mn/mx < 1e-10;
 }
 
-function bidirectionalFilter(m, vi, vo) {
-  let pivot = 0;
-  for (let i = 1; i <= 2; i++) {
-    const idx = vi[i]; let t = vo[idx]; vo[idx] = vo[i];
-    if (pivot !== 0) for (let y = pivot; y <= i-1; y++) t -= vo[y]*m[i][y];
-    else if (t !== 0) pivot = i;
-    vo[i] = t;
+function bidirectionalFilter(mtx, vi, vo){
+  let x=0;
+  for(let i=1;i<=2;i++){
+    const idx=vi[i]; let t=vo[idx]; vo[idx]=vo[i];
+    if(x!==0) for(let y=x;y<=i-1;y++) t -= vo[y]*mtx[i][y];
+    else if(t!==0) x=i;
+    vo[i]=t;
   }
-  for (let i = 2; i > 0; i--) {
-    let t = vo[i]; for (let y = i+1; y <= 2; y++) t -= vo[y]*m[i][y];
-    vo[i] = t / m[i][i];
+  for(let i=2;i>0;i--){
+    let t=vo[i];
+    for(let y=i+1;y<=2;y++) t -= vo[y]*mtx[i][y];
+    vo[i]=t/mtx[i][i];
   }
-  vo[0] = 1.0;
+  vo[0]=1.0;
 }
 
-function quadraticMerge(v) {
-  const v2 = v[2], tmp = 1 - v2*v2;
-  if (tmp === 0) return true;
-  v[0] = (v[0] - v2*v2) / tmp;
-  v[1] = (v[1] - v[1]*v2) / tmp;
-  return Math.abs(v[1]) > 1.0;
+function quadraticMerge(v){
+  const v2=v[2], tmp=1-(v2*v2);
+  if(tmp===0) return true;
+  v[0]=(v[0]-(v2*v2))/tmp;
+  v[1]=(v[1]-(v[1]*v2))/tmp;
+  return Math.abs(v[1])>1.0;
 }
 
-function finishRecord(inp, out) {
-  const v = new Float64Array(inp);
-  for (let z = 1; z <= 2; z++) v[z] = v[z]>=1 ? 0.9999999999 : v[z]<=-1 ? -0.9999999999 : v[z];
-  out[0]=1.0; out[1]=(v[2]*v[1])+v[1]; out[2]=v[2];
+function finishRecord(inp, out){
+  const v=new Float64Array(inp);
+  for(let z=1;z<=2;z++){
+    if(v[z]>=1)  v[z]=0.9999999999;
+    else if(v[z]<=-1) v[z]=-0.9999999999;
+  }
+  out[0]=1.0;
+  out[1]=(v[2]*v[1])+v[1];
+  out[2]=v[2];
 }
 
-function matrixFilter(src, dst) {
-  const m = [[],[new Float64Array(3)],[new Float64Array(3)]];
-  m[2][0]=1.0; for (let i=1; i<=2; i++) m[2][i]=-src[i];
-  for (let i=2; i>0; i--) {
-    const val = 1-(m[i][i]*m[i][i]);
-    for (let y=1; y<=i; y++) m[i-1][y] = ((m[i][i]*m[i][y])+m[i][y])/val;
+function matrixFilter(src, dst){
+  const mtx=[[],[new Float64Array(3)],[new Float64Array(3)]];
+  mtx[2][0]=1.0;
+  for(let i=1;i<=2;i++) mtx[2][i]=-src[i];
+  for(let i=2;i>0;i--){
+    const val=1-(mtx[i][i]*mtx[i][i]);
+    for(let y=1;y<=i;y++) mtx[i-1][y]=((mtx[i][i]*mtx[i][y])+mtx[i][y])/val;
   }
   dst[0]=1.0;
-  for (let i=1; i<=2; i++) { dst[i]=0; for (let y=1; y<=i; y++) dst[i]+=m[i][y]*dst[i-y]; }
-}
-
-function mergeFinishRecord(src, dst) {
-  let val = src[0]; dst[0]=1.0;
-  const tmp = new Float64Array(3);
-  for (let i=1; i<=2; i++) {
-    let v2=0; for (let y=1; y<i; y++) v2+=dst[y]*src[i-y];
-    dst[i] = val>0 ? -(v2+src[i])/val : 0;
-    tmp[i] = dst[i];
-    for (let y=1; y<i; y++) dst[y]+=dst[i]*dst[i-y];
-    val *= 1-(dst[i]*dst[i]);
-  }
-  finishRecord(tmp, dst);
-}
-
-function contrastVectors(s1, s2) {
-  const val = (s2[2]*s2[1] + -s2[1]) / (1-(s2[2]*s2[2]));
-  const v1  = s1[0]*s1[0] + s1[1]*s1[1] + s1[2]*s1[2];
-  const v2  = s1[0]*s1[1] + s1[1]*s1[2];
-  const v3  = s1[0]*s1[2];
-  return v1 + 2*val*v2 + 2*(-s2[1]*val + -s2[2])*v3;
-}
-
-function filterRecords(vecBest, exp, records) {
-  for (let pass = 0; pass < 2; pass++) {
-    const cnt  = new Int32Array(exp);
-    const bufs = Array.from({ length: exp }, () => new Float64Array(3));
-    for (const rec of records) {
-      let best=1e30, idx=0;
-      for (let i=0; i<exp; i++) { const v=contrastVectors(vecBest[i],rec); if (v<best){best=v;idx=i;} }
-      cnt[idx]++;
-      const tmp = new Float64Array(3); matrixFilter(rec, tmp);
-      for (let i=0; i<=2; i++) bufs[idx][i]+=tmp[i];
-    }
-    for (let i=0; i<exp; i++) {
-      if (cnt[i]>0) for (let y=0; y<=2; y++) bufs[i][y]/=cnt[i];
-      mergeFinishRecord(bufs[i], vecBest[i]);
-    }
+  for(let i=1;i<=2;i++){
+    dst[i]=0;
+    for(let y=1;y<=i;y++) dst[i]+=mtx[i][y]*dst[i-y];
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DSP FRAME ENCODER
-// JS port of grok.c DSPEncodeFrame()
-//
-// pcmBuf: Int32Array[16]
-//   [0]  = hist2 (in)
-//   [1]  = hist1 (in)
-//   [2..sampleCount+1] = input samples (in) / reconstructed samples (out)
-//
-// Returns Uint8Array[8]: the encoded ADPCM frame bytes.
-// ─────────────────────────────────────────────────────────────────────────────
-function dspEncodeFrame(pcmBuf, sampleCount, coefs) {
-  // For each of 8 coef pairs, simulate encoding and measure distortion
-  const inBufs  = Array.from({ length: 8 }, () => new Int32Array(16));
-  const outNibs = Array.from({ length: 8 }, () => new Int32Array(14));
-  const scales  = new Int32Array(8);
-  const dists   = new Float64Array(8);
+function mergeFinishRecord(src, dst){
+  let val=src[0];
+  dst[0]=1.0;
+  const tmp=new Float64Array(3);
+  for(let i=1;i<=2;i++){
+    let v2=0;
+    for(let y=1;y<i;y++) v2+=dst[y]*src[i-y];
+    dst[i]= val>0 ? -(v2+src[i])/val : 0;
+    tmp[i]=dst[i];
+    for(let y=1;y<i;y++) dst[y]+=dst[i]*dst[i-y];
+    val*=1-(dst[i]*dst[i]);
+  }
+  finishRecord(tmp,dst);
+}
 
-  for (let ci = 0; ci < 8; ci++) {
-    const c0 = coefs[ci * 2], c1 = coefs[ci * 2 + 1];
-    inBufs[ci][0] = pcmBuf[0];
-    inBufs[ci][1] = pcmBuf[1];
+function contrastVectors(s1, s2){
+  const val=(s2[2]*s2[1] + -s2[1])/(1-(s2[2]*s2[2]));
+  const v1 = s1[0]*s1[0] + s1[1]*s1[1] + s1[2]*s1[2];
+  const v2 = s1[0]*s1[1] + s1[1]*s1[2];
+  const v3 = s1[0]*s1[2];
+  return v1 + (2*val*v2) + (2*(-s2[1]*val + -s2[2])*v3);
+}
 
-    // Find maximum residual to determine scale
-    let maxResid = 0;
-    for (let s = 0; s < sampleCount; s++) {
-      const pred = ((pcmBuf[s+1]*c0) + (pcmBuf[s]*c1)) / 2048 | 0;
-      inBufs[ci][s+2] = pred;
-      const resid = pcmBuf[s+2] - pred;
-      const clamped = resid > 32767 ? 32767 : resid < -32768 ? -32768 : resid;
-      if (Math.abs(clamped) > Math.abs(maxResid)) maxResid = clamped;
-    }
-
-    // Find minimum scale that fits residuals into [-8,7]
-    scales[ci] = 0;
-    while (scales[ci] <= 12 && (maxResid > 7 || maxResid < -8)) { scales[ci]++; maxResid = maxResid / 2 | 0; }
-    scales[ci] = scales[ci] <= 1 ? -1 : scales[ci] - 2;
-
-    // Refine scale and encode, adjusting upward if any nibble overflows
-    let ovfl = 0;
-    do {
-      scales[ci]++;
-      dists[ci] = 0;
-      ovfl = 0;
-      for (let s = 0; s < sampleCount; s++) {
-        const pred = ((inBufs[ci][s]*c1) + (inBufs[ci][s+1]*c0));
-        const diff = ((pcmBuf[s+2] << 11) - pred) / 2048 | 0;
-        const step = 1 << scales[ci];
-        // Round half away from zero (matching grok.c exactly)
-        let enc = diff > 0 ? Math.floor(diff / step + 0.4999999) : Math.ceil(diff / step - 0.4999999);
-        if (enc < -8) { const ov=-8-enc; if(ov>ovfl)ovfl=ov; enc=-8; }
-        else if (enc > 7) { const ov=enc-7; if(ov>ovfl)ovfl=ov; enc=7; }
-        outNibs[ci][s] = enc;
-        const recon = (pred + ((enc * step) << 11) + 1024) >> 11;
-        inBufs[ci][s+2] = recon > 32767 ? 32767 : recon < -32768 ? -32768 : recon;
-        const err = pcmBuf[s+2] - inBufs[ci][s+2];
-        dists[ci] += err * err;
+function filterRecords(vecBest, exp, records){
+  for(let x=0;x<2;x++){
+    const cnt     = new Int32Array(exp);
+    const bufList = Array.from({length:exp},()=>new Float64Array(3));
+    for(const rec of records){
+      let idx=0, best=1e30;
+      for(let i=0;i<exp;i++){
+        const v=contrastVectors(vecBest[i],rec);
+        if(v<best){best=v;idx=i;}
       }
-      // Increase scale until overflow fits, capped at 12
-      for (let x = ovfl + 8; x > 256; x >>= 1) if (++scales[ci] >= 12) { scales[ci]=11; break; }
-    } while (scales[ci] < 12 && ovfl > 1);
+      cnt[idx]++;
+      const tmp=new Float64Array(3);
+      matrixFilter(rec,tmp);
+      for(let i=0;i<=2;i++) bufList[idx][i]+=tmp[i];
+    }
+    for(let i=0;i<exp;i++){
+      if(cnt[i]>0) for(let y=0;y<=2;y++) bufList[i][y]/=cnt[i];
+      mergeFinishRecord(bufList[i],vecBest[i]);
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DSP FRAME ENCODER — port of grok.c DSPEncodeFrame()
+//
+// pcmInOut: Int32Array[16]
+//   [0] = hist2 (second-oldest decoded sample, used as predictor history)
+//   [1] = hist1 (most recent decoded sample)
+//   [2..SPB+1] = input samples; overwritten with reconstructed values
+//
+// coefsFlat: Int16Array[16] = [c0a,c0b, c1a,c1b, ... c7a,c7b]
+//
+// Returns: Uint8Array[8] — one ADPCM frame
+// ══════════════════════════════════════════════════════════════════════════════
+function dspEncodeFrame(pcmInOut, sampleCount, coefsFlat){
+  const SPB = 14;
+
+  // Per-predictor state
+  const inS    = Array.from({length:8}, ()=>new Int32Array(SPB+2));
+  const outS   = Array.from({length:8}, ()=>new Int32Array(SPB));
+  const scale  = new Int32Array(8);
+  const dist   = new Float64Array(8);
+  let best=0;
+
+  for(let i=0;i<8;i++){
+    const c0 = coefsFlat[i*2];
+    const c1 = coefsFlat[i*2+1];
+
+    // Copy history into per-predictor buffer
+    inS[i][0] = pcmInOut[0];
+    inS[i][1] = pcmInOut[1];
+
+    // Find max deviation of raw prediction error (used to set initial scale)
+    let distance=0;
+    for(let s=0;s<sampleCount;s++){
+      const pred = ((pcmInOut[s+1]*c0) + (pcmInOut[s]*c1)) / 2048 | 0;
+      inS[i][s+2] = pred;
+      const err = pcmInOut[s+2] - pred;
+      const clamped = err>32767?32767 : err<-32768?-32768 : err;
+      if(Math.abs(clamped) > Math.abs(distance)) distance=clamped;
+    }
+
+    // Find minimum scale that fits the max error in [-8,7]
+    scale[i]=0;
+    while(scale[i]<=12 && (distance>7 || distance<-8)){
+      scale[i]++;
+      distance = distance/2 | 0;
+    }
+    scale[i] = scale[i]<=1 ? -1 : scale[i]-2;
+
+    // Iterative encoding: increase scale until all nibbles are in range
+    let index=0;
+    do {
+      scale[i]++;
+      dist[i]=0;
+      index=0;
+
+      for(let s=0;s<sampleCount;s++){
+        // Predict
+        const pred = (inS[i][s]*c1) + (inS[i][s+1]*c0);
+        // Error in Q11
+        const errQ11 = ((pcmInOut[s+2]<<11) - pred) / 2048 | 0;
+        const sc = 1 << scale[i];
+
+        // Round away from zero (grok.c uses +/- 0.4999999)
+        let nib = errQ11>0
+          ? Math.floor(errQ11/sc + 0.4999999)
+          : Math.ceil (errQ11/sc - 0.4999999);
+
+        // Clamp to signed 4-bit [-8, 7] and track overflow
+        if(nib < -8){
+          const ov = -8-nib; if(index<ov) index=ov; nib=-8;
+        } else if(nib > 7){
+          const ov = nib-7;  if(index<ov) index=ov; nib=7;
+        }
+        outS[i][s] = nib;
+
+        // Decode reconstructed sample
+        const rv = (pred + ((nib*sc)<<11) + 1024) >> 11;
+        inS[i][s+2] = rv>32767?32767 : rv<-32768?-32768 : rv;
+
+        // Accumulate squared error
+        const d = pcmInOut[s+2] - inS[i][s+2];
+        dist[i] += d*d;
+      }
+
+      // If overflow, bump scale proportionally (grok.c logic)
+      for(let x=index+8; x>256; x>>=1)
+        if(++scale[i]>=12){ scale[i]=11; break; }
+
+    } while(scale[i]<12 && index>1);
   }
 
-  // Pick coef pair with lowest distortion
-  let best = 0, bestDist = Infinity;
-  for (let i = 0; i < 8; i++) if (dists[i] < bestDist) { bestDist=dists[i]; best=i; }
+  // Choose predictor with least squared error
+  let minDist=Infinity;
+  for(let i=0;i<8;i++) if(dist[i]<minDist){minDist=dist[i];best=i;}
 
-  // Update pcmBuf with reconstructed samples for history propagation
-  for (let s = 0; s < sampleCount; s++) pcmBuf[s+2] = inBufs[best][s+2];
+  // Write reconstructed samples back into pcmInOut (for next frame's history)
+  for(let s=0;s<sampleCount;s++) pcmInOut[s+2] = inS[best][s+2];
 
-  // Pack into 8-byte ADPCM frame
+  // Pack ADPCM frame bytes
   const adpcm = new Uint8Array(8);
-  adpcm[0] = (best << 4) | (scales[best] & 0xF);
-  for (let y = 0; y < 7; y++)
-    adpcm[y+1] = ((outNibs[best][y*2] & 0xF) << 4) | (outNibs[best][y*2+1] & 0xF);
+  adpcm[0] = (best<<4) | (scale[best]&0xF);
+  for(let y=0;y<7;y++)
+    adpcm[y+1] = ((outS[best][y*2]&0xF)<<4) | (outS[best][y*2+1]&0xF);
+
   return adpcm;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MONO CHANNEL ENCODER
-// Feeds DSPEncodeFrame frame-by-frame and accumulates output.
-// Returns a flat (non-interleaved) Uint8Array of ADPCM frames.
-// ─────────────────────────────────────────────────────────────────────────────
-function encodeMonoFlat(pcm, coefs) {
-  const SPB    = 14, BPB = 8;
-  const frames = Math.ceil(pcm.length / SPB);
-  const out    = new Uint8Array(frames * BPB);
+// ══════════════════════════════════════════════════════════════════════════════
+// MONO ENCODER — drives DSPEncodeFrame frame by frame
+// Returns: Uint8Array of raw DSP-ADPCM data (no header), interleave-padded
+// ══════════════════════════════════════════════════════════════════════════════
+function encodeMono(pcm, coefs){
+  const SPB  = 14;
+  const BPF  = 8;
+  const INTERLEAVE = 0x100;
+  const fpB  = Math.floor(INTERLEAVE / BPF);  // frames per interleave block = 32
 
-  // pcmBuf layout: [hist2, hist1, sample0..sample13]
-  // hist is carried across frames; samples filled each iteration.
-  const pcmBuf = new Int32Array(16); // zeroed = silence history
+  const frames     = Math.ceil(pcm.length / SPB);
+  const totalBlocks= Math.ceil(frames / fpB);
+  const outSize    = totalBlocks * INTERLEAVE;
+  const out        = new Uint8Array(outSize);  // zero-padded
 
-  for (let f = 0; f < frames; f++) {
+  // pcmInOut: [hist2, hist1, sample0..sample13]
+  const pcmInOut = new Int32Array(SPB+2);
+
+  for(let f=0;f<frames;f++){
     const base  = f * SPB;
     const count = Math.min(SPB, pcm.length - base);
 
-    // Fill samples; zero-pad last frame if needed
-    for (let s = 0; s < count; s++) pcmBuf[s+2] = pcm[base+s];
-    for (let s = count; s < SPB; s++) pcmBuf[s+2] = 0;
+    // Fill sample slots; pad remainder with 0
+    for(let s=0;s<count;s++)  pcmInOut[s+2] = pcm[base+s];
+    for(let s=count;s<SPB;s++) pcmInOut[s+2] = 0;
 
-    const frame = dspEncodeFrame(pcmBuf, count, coefs);
-    out.set(frame, f * BPB);
+    // Encode frame
+    const adpcm = dspEncodeFrame(pcmInOut, count, coefs);
 
-    // Carry last two reconstructed samples as history for next frame
-    // After DSPEncodeFrame, pcmBuf[2..count+1] hold reconstructed values.
-    pcmBuf[0] = pcmBuf[count];     // hist2 ← sample[count-2] (second-to-last)
-    pcmBuf[1] = pcmBuf[count+1];   // hist1 ← sample[count-1] (last)
+    // Write to output (byte offset = frame * BPF)
+    out.set(adpcm, f * BPF);
+
+    // Roll history: after encoding, inS[best][SPB] and inS[best][SPB+1]
+    // are the last two reconstructed samples. DSPEncodeFrame wrote them
+    // back into pcmInOut[SPB] and pcmInOut[SPB+1] via the write-back loop.
+    // Actually pcmInOut[2..count+1] are the reconstructed samples.
+    // We need the last two as next frame's hist2, hist1.
+    pcmInOut[0] = pcmInOut[count];    // hist2 = second-last reconstructed
+    pcmInOut[1] = pcmInOut[count+1];  // hist1 = last reconstructed
   }
 
   return out;
