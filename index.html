@@ -21,14 +21,14 @@ input[type=text]::placeholder{letter-spacing:1px;text-transform:none;color:#333}
 .btn{background:#e8382a;border:none;border-radius:4px;color:#fff;cursor:pointer;font-family:'Courier New',monospace;font-size:0.78rem;font-weight:bold;letter-spacing:1px;padding:0.55rem 1.1rem;text-transform:uppercase;transition:opacity 0.2s;white-space:nowrap}
 .btn:hover{opacity:0.85}
 .btn:active{opacity:0.65}
-.btn:disabled{opacity:0.4;cursor:not-allowed}
+.btn:disabled{opacity:0.35;cursor:not-allowed}
 .btn-ghost{background:transparent;border:1px solid #333;color:#888}
 .btn-ghost:hover:not(:disabled){border-color:#555;color:#ccc}
 .btn-sm{padding:0.3rem 0.75rem;font-size:0.7rem}
-.status{font-size:0.75rem;padding:0.5rem 0.85rem;border-radius:4px;margin-top:0.85rem;line-height:1.5}
-.status.error{background:#2a0a0a;border:1px solid #5a1a1a;color:#ff6b6b}
-.status.ok{background:#0a2a0a;border:1px solid #1a5a1a;color:#6bff6b}
-.status.loading{background:#1a1a0a;border:1px solid #3a3a1a;color:#ffe06b}
+.status{font-size:0.75rem;padding:0.55rem 0.9rem;border-radius:4px;margin-top:0.85rem;line-height:1.6}
+.status.error{background:#2a0a0a;border:1px solid #5a1a1a;color:#ff7070}
+.status.ok{background:#0a2a0a;border:1px solid #1a5a1a;color:#70ff70}
+.status.loading{background:#1a1a0a;border:1px solid #3a3a1a;color:#ffe070}
 .char-result{width:100%;max-width:680px;border:1px solid #252525;border-radius:6px;overflow:hidden;margin-bottom:1rem}
 .char-header{display:flex;align-items:center;gap:14px;padding:1rem 1.1rem;background:#131313;border-bottom:1px solid #222}
 .char-avatar{width:52px;height:52px;border-radius:4px;object-fit:contain;background:#0a0a0a;border:1px solid #1e1e1e;image-rendering:pixelated}
@@ -42,16 +42,18 @@ input[type=text]::placeholder{letter-spacing:1px;text-transform:none;color:#333}
 .section-title{font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:#444;margin-bottom:0.65rem}
 .pose-item{display:flex;align-items:center;gap:10px;padding:0.45rem 0;border-bottom:1px solid #181818}
 .pose-item:last-child{border-bottom:none}
-.pose-preview{display:flex;gap:4px}
-.pose-thumb{width:36px;height:36px;object-fit:contain;background:#0a0a0a;border-radius:2px;border:1px solid #1a1a1a;image-rendering:pixelated}
-.pose-thumb-label{font-size:0.55rem;color:#444;text-align:center;margin-top:2px;letter-spacing:1px}
+.pose-preview{display:flex;gap:6px}
+.pose-col{display:flex;flex-direction:column;align-items:center;gap:2px}
+.pose-thumb{width:38px;height:38px;object-fit:contain;background:#0a0a0a;border-radius:2px;border:1px solid #1a1a1a;image-rendering:pixelated}
+.pose-thumb-label{font-size:0.52rem;color:#444;letter-spacing:1px;text-transform:uppercase}
 .pose-name{font-size:0.82rem;color:#ccc;flex:1}
-.sprite-missing{width:36px;height:36px;background:#0d0d0d;border:1px dashed #222;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:0.55rem;color:#333}
+.sprite-missing{width:38px;height:38px;background:#0d0d0d;border:1px dashed #1e1e1e;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:0.5rem;color:#2a2a2a}
 .dl-bar{display:flex;gap:8px;padding:0.9rem;border-top:1px solid #1a1a1a;flex-wrap:wrap}
-.progress-wrap{margin-top:0.85rem}
-.progress-label{font-size:0.7rem;color:#555;margin-bottom:5px}
-.progress-track{background:#111;border:1px solid #222;border-radius:3px;height:6px;overflow:hidden}
-.progress-fill{height:100%;background:#e8382a;border-radius:3px;transition:width 0.2s;width:0%}
+.progress-wrap{padding:0 0.9rem 0.9rem}
+.progress-label{font-size:0.7rem;color:#666;margin-bottom:5px}
+.progress-track{background:#111;border:1px solid #1e1e1e;border-radius:3px;height:5px;overflow:hidden}
+.progress-fill{height:100%;background:#e8382a;border-radius:3px;transition:width 0.15s;width:0%}
+.progress-fill.done{background:#2a8a2a}
 </style>
 </head>
 <body>
@@ -75,26 +77,40 @@ input[type=text]::placeholder{letter-spacing:1px;text-transform:none;color:#333}
 <div id="result-area"></div>
 
 <script>
-const PROXY = 'https://corsproxy.io/?url=';
-const API_BASE = 'https://objection.lol/api/character/share/';
+// All known/plausible endpoint patterns — tried in order until one works
+const ENDPOINTS = [
+  code => `https://objection.lol/api/asset/share/${code}`,
+  code => `https://objection.lol/api/character/share/${code}`,
+  code => `https://objection.lol/api/assets/share/${code}`,
+  code => `https://objection.lol/api/customcharacter/share/${code}`,
+];
+
+// Multiple CORS proxies — fallback if one fails
+const PROXIES = [
+  url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+];
 
 function setStatus(msg, type) {
   document.getElementById('fetch-status').innerHTML =
     msg ? `<div class="status ${type}">${msg}</div>` : '';
 }
 
-function ext(url) {
-  try {
-    const p = new URL(url).pathname;
-    const m = p.match(/\.(gif|png|jpg|jpeg|webp)$/i);
-    return m ? m[0] : '.gif';
-  } catch { return '.gif'; }
-}
-
-async function fetchWithProxy(url) {
-  const res = await fetch(PROXY + encodeURIComponent(url));
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  return res;
+async function tryFetch(rawUrl) {
+  for (const proxy of PROXIES) {
+    try {
+      const res = await fetch(proxy(rawUrl), { signal: AbortSignal.timeout(8000) });
+      if (res.ok) {
+        const text = await res.text();
+        // Make sure it's actually JSON, not an HTML error page
+        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+          return JSON.parse(text);
+        }
+      }
+    } catch { /* try next proxy */ }
+  }
+  return null;
 }
 
 async function fetchCharacter() {
@@ -103,43 +119,61 @@ async function fetchCharacter() {
 
   const btn = document.getElementById('fetch-btn');
   btn.disabled = true;
-  setStatus('Fetching character data…', 'loading');
   document.getElementById('result-area').innerHTML = '';
+  setStatus(`Trying to reach objection.lol…`, 'loading');
 
-  try {
-    const res = await fetchWithProxy(API_BASE + code);
-    const data = await res.json();
-    setStatus('', '');
-    renderResult(data, code);
-  } catch(e) {
-    setStatus('Could not fetch: ' + e.message + '<br><small>Check the code or try again — proxy may be rate-limited.</small>', 'error');
-  } finally {
-    btn.disabled = false;
+  let data = null;
+  let foundEndpoint = null;
+
+  for (const ep of ENDPOINTS) {
+    const url = ep(code);
+    setStatus(`Probing endpoint: <code style="color:#aaa">${url.replace('https://objection.lol','')}</code>…`, 'loading');
+    data = await tryFetch(url);
+    if (data && (data.name || data.poses)) {
+      foundEndpoint = url;
+      break;
+    }
+    data = null;
   }
+
+  btn.disabled = false;
+
+  if (!data) {
+    setStatus(
+      `❌ Could not fetch character.<br>
+      <span style="color:#888">Possible reasons:</span><br>
+      · The share code <strong style="color:#ccc">${code}</strong> doesn't exist or has expired<br>
+      · All CORS proxies are temporarily down — try again in a moment<br>
+      · objection.lol may have changed their API<br>
+      <br><span style="color:#555;font-size:0.7rem">Tried: ${ENDPOINTS.map(e=>e(code).replace('https://objection.lol','')).join(', ')}</span>`,
+      'error'
+    );
+    return;
+  }
+
+  setStatus('', '');
+  renderResult(data, code, foundEndpoint);
 }
 
-function renderResult(d, code) {
+function renderResult(d, code, endpoint) {
   const locMap = {1:'Defense',2:'Prosecution',3:'Witness',4:'Judge',5:'Counsel',6:'Unknown'};
   const loc = locMap[d.location] || (''+d.location) || 'Unknown';
   const poses = d.poses || [];
-  const thumb = d.galleryImageUrl || (poses[0]?.idleImageUrl) || '';
+  const thumb = d.galleryImageUrl || poses[0]?.idleImageUrl || '';
 
   const posesHtml = poses.map((p, i) => {
     const label = p.name || `Pose ${i+1}`;
-    const idleEl = p.idleImageUrl
-      ? `<div><img class="pose-thumb" src="${p.idleImageUrl}" onerror="this.parentElement.innerHTML='<div class=sprite-missing>—</div>'" alt="idle"><div class="pose-thumb-label">IDLE</div></div>`
-      : `<div><div class="sprite-missing">—</div><div class="pose-thumb-label">IDLE</div></div>`;
-    const talkEl = p.talkImageUrl
-      ? `<div><img class="pose-thumb" src="${p.talkImageUrl}" onerror="this.parentElement.innerHTML='<div class=sprite-missing>—</div>'" alt="talk"><div class="pose-thumb-label">TALK</div></div>`
-      : `<div><div class="sprite-missing">—</div><div class="pose-thumb-label">TALK</div></div>`;
+    const mk = (url, type) => url
+      ? `<div class="pose-col"><img class="pose-thumb" src="${url}" onerror="this.parentElement.innerHTML='<div class=sprite-missing>✕</div><div class=pose-thumb-label>${type}</div>'" alt="${type}"><div class="pose-thumb-label">${type}</div></div>`
+      : `<div class="pose-col"><div class="sprite-missing">—</div><div class="pose-thumb-label">${type}</div></div>`;
     return `<div class="pose-item">
-      <div class="pose-preview">${idleEl}${talkEl}</div>
+      <div class="pose-preview">${mk(p.idleImageUrl,'IDLE')}${mk(p.talkImageUrl,'TALK')}</div>
       <span class="pose-name">${label}</span>
     </div>`;
   }).join('');
 
   document.getElementById('result-area').innerHTML = `
-    <div class="char-result" id="char-card">
+    <div class="char-result">
       <div class="char-header">
         ${thumb ? `<img class="char-avatar" src="${thumb}" onerror="this.style.display='none'" alt="">` : ''}
         <div>
@@ -154,101 +188,100 @@ function renderResult(d, code) {
         <div class="meta-item"><div class="meta-label">Side</div><div class="meta-value">${d.imageSide||'—'}</div></div>
       </div>
       <div class="poses-section">
-        <div class="section-title">Poses</div>
+        <div class="section-title">Poses &amp; Sprites</div>
         ${posesHtml || '<div style="color:#444;font-size:0.8rem">No poses found</div>'}
       </div>
       <div class="dl-bar">
         <button class="btn" id="zip-btn" onclick="downloadZip()">⬇ Download ZIP</button>
-        <button class="btn btn-ghost btn-sm" onclick="downloadJson()">Download JSON</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadJson()">JSON only</button>
       </div>
-      <div id="zip-progress" style="display:none;padding:0 0.9rem 0.9rem">
-        <div class="progress-label" id="progress-label">Preparing…</div>
-        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+      <div id="zip-progress" style="display:none" class="progress-wrap">
+        <div class="progress-label" id="prog-label">Preparing…</div>
+        <div class="progress-track"><div class="progress-fill" id="prog-fill"></div></div>
       </div>
     </div>`;
 
-  window._charData = d;
-  window._charCode = code;
+  window._char = d;
+  window._code = code;
+}
+
+function ext(url) {
+  try { const m = new URL(url).pathname.match(/\.(gif|png|jpg|jpeg|webp)$/i); return m?m[0]:'.gif'; }
+  catch { return '.gif'; }
 }
 
 async function downloadZip() {
-  const d = window._charData;
-  const code = window._charCode;
+  const d = window._char, code = window._code;
   if (!d) return;
 
   const zipBtn = document.getElementById('zip-btn');
-  const progressWrap = document.getElementById('zip-progress');
-  const progressLabel = document.getElementById('progress-label');
-  const progressFill = document.getElementById('progress-fill');
+  const progWrap = document.getElementById('zip-progress');
+  const progLabel = document.getElementById('prog-label');
+  const progFill = document.getElementById('prog-fill');
 
   zipBtn.disabled = true;
-  progressWrap.style.display = 'block';
+  progWrap.style.display = 'block';
+  progFill.classList.remove('done');
 
   const zip = new JSZip();
-  const folderName = (d.name || code).replace(/[^a-z0-9]/gi, '_');
+  const folderName = (d.name||code).replace(/[^a-z0-9]/gi,'_');
   const folder = zip.folder(folderName);
 
-  // Add character JSON
   folder.file('character.json', JSON.stringify(d, null, 2));
 
   const poses = d.poses || [];
-  const spritesToFetch = [];
+  const jobs = [];
 
   poses.forEach((p, i) => {
-    const poseName = (p.name || `pose_${i+1}`).replace(/[^a-z0-9]/gi, '_');
-    if (p.idleImageUrl) spritesToFetch.push({ url: p.idleImageUrl, path: `sprites/${poseName}_idle${ext(p.idleImageUrl)}` });
-    if (p.talkImageUrl) spritesToFetch.push({ url: p.talkImageUrl, path: `sprites/${poseName}_talk${ext(p.talkImageUrl)}` });
+    const pn = (p.name||`pose_${i+1}`).replace(/[^a-z0-9]/gi,'_');
+    if (p.idleImageUrl) jobs.push({ url: p.idleImageUrl, path: `sprites/${pn}_idle${ext(p.idleImageUrl)}` });
+    if (p.talkImageUrl) jobs.push({ url: p.talkImageUrl, path: `sprites/${pn}_talk${ext(p.talkImageUrl)}` });
   });
-
-  if (d.galleryImageUrl) {
-    spritesToFetch.push({ url: d.galleryImageUrl, path: `gallery${ext(d.galleryImageUrl)}` });
-  }
+  if (d.galleryImageUrl) jobs.push({ url: d.galleryImageUrl, path: `gallery${ext(d.galleryImageUrl)}` });
 
   let done = 0;
-  const total = spritesToFetch.length;
+  const total = jobs.length;
 
-  const updateProgress = (label) => {
-    const pct = total > 0 ? Math.round((done / total) * 100) : 100;
-    progressFill.style.width = pct + '%';
-    progressLabel.textContent = label || `Downloading sprites… ${done}/${total}`;
+  const tick = () => {
+    done++;
+    const pct = total > 0 ? Math.round(done/total*100) : 100;
+    progFill.style.width = pct + '%';
+    progLabel.textContent = `Downloading sprites… ${done}/${total}`;
   };
 
-  updateProgress(`Downloading sprites… 0/${total}`);
-
-  await Promise.all(spritesToFetch.map(async ({ url, path }) => {
-    try {
-      const res = await fetchWithProxy(url);
-      const blob = await res.blob();
-      folder.file(path, blob);
-    } catch {
-      // skip failed sprites silently
-    } finally {
-      done++;
-      updateProgress(`Downloading sprites… ${done}/${total}`);
+  await Promise.all(jobs.map(async ({ url, path }) => {
+    let blob = null;
+    for (const proxy of PROXIES) {
+      try {
+        const res = await fetch(proxy(url), { signal: AbortSignal.timeout(10000) });
+        if (res.ok) { blob = await res.blob(); break; }
+      } catch { /* try next */ }
     }
+    if (blob) folder.file(path, blob);
+    tick();
   }));
 
-  updateProgress('Building ZIP…');
+  progLabel.textContent = 'Building ZIP…';
+  const blob = await zip.generateAsync({ type:'blob', compression:'DEFLATE', compressionOptions:{level:6} });
 
-  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = folderName + '_' + code + '.zip';
+  a.download = `${folderName}_${code}.zip`;
   a.click();
 
-  progressLabel.textContent = '✓ Done!';
-  progressFill.style.background = '#2a8a2a';
+  progLabel.textContent = `✓ Done! ${done}/${total} sprites downloaded.`;
+  progFill.classList.add('done');
   zipBtn.disabled = false;
 }
 
 function downloadJson() {
-  const d = window._charData;
-  const code = window._charCode;
+  const d = window._char, code = window._code;
   if (!d) return;
-  const name = (d.name || code).replace(/[^a-z0-9]/gi, '_');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }));
-  a.download = name + '_' + code + '.json';
+  const name = (d.name||code).replace(/[^a-z0-9]/gi,'_');
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'})),
+    download: `${name}_${code}.json`
+  });
   a.click();
 }
 </script>
