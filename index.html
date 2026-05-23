@@ -1,288 +1,952 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Objection.lol Character Downloader</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCA ↔ WAV Converter</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Courier New',monospace;background:#0e0e0e;color:#d0d0d0;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:2rem 1rem}
-header{text-align:center;margin-bottom:2rem}
-.logo{font-size:1.8rem;font-weight:bold;color:#fff;letter-spacing:-1px}
-.logo span{color:#e8382a}
-.tagline{font-size:0.7rem;color:#555;margin-top:4px;letter-spacing:3px;text-transform:uppercase}
-.card{background:#171717;border:1px solid #252525;border-radius:6px;padding:1.5rem;margin-bottom:1rem;width:100%;max-width:680px}
-.card-title{font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:#555;margin-bottom:1rem}
-.row{display:flex;gap:8px;align-items:center}
-input[type=text]{background:#0e0e0e;border:1px solid #2a2a2a;border-radius:4px;color:#e0e0e0;font-family:'Courier New',monospace;font-size:1rem;padding:0.55rem 0.8rem;outline:none;transition:border-color 0.2s;width:100%;letter-spacing:3px;text-transform:uppercase}
-input[type=text]:focus{border-color:#e8382a}
-input[type=text]::placeholder{letter-spacing:1px;text-transform:none;color:#333}
-.btn{background:#e8382a;border:none;border-radius:4px;color:#fff;cursor:pointer;font-family:'Courier New',monospace;font-size:0.78rem;font-weight:bold;letter-spacing:1px;padding:0.55rem 1.1rem;text-transform:uppercase;transition:opacity 0.2s;white-space:nowrap}
-.btn:hover{opacity:0.85}
-.btn:active{opacity:0.65}
-.btn:disabled{opacity:0.35;cursor:not-allowed}
-.btn-ghost{background:transparent;border:1px solid #333;color:#888}
-.btn-ghost:hover:not(:disabled){border-color:#555;color:#ccc}
-.btn-sm{padding:0.3rem 0.75rem;font-size:0.7rem}
-.status{font-size:0.75rem;padding:0.55rem 0.9rem;border-radius:4px;margin-top:0.85rem;line-height:1.6}
-.status.error{background:#2a0a0a;border:1px solid #5a1a1a;color:#ff7070}
-.status.ok{background:#0a2a0a;border:1px solid #1a5a1a;color:#70ff70}
-.status.loading{background:#1a1a0a;border:1px solid #3a3a1a;color:#ffe070}
-.char-result{width:100%;max-width:680px;border:1px solid #252525;border-radius:6px;overflow:hidden;margin-bottom:1rem}
-.char-header{display:flex;align-items:center;gap:14px;padding:1rem 1.1rem;background:#131313;border-bottom:1px solid #222}
-.char-avatar{width:52px;height:52px;border-radius:4px;object-fit:contain;background:#0a0a0a;border:1px solid #1e1e1e;image-rendering:pixelated}
-.char-name{font-size:1.05rem;color:#fff;font-weight:bold}
-.char-sub{font-size:0.68rem;color:#555;letter-spacing:1px;text-transform:uppercase;margin-top:3px}
-.char-meta{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#1a1a1a}
-.meta-item{background:#111;padding:0.6rem 0.9rem}
-.meta-label{font-size:0.62rem;color:#444;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px}
-.meta-value{font-size:0.82rem;color:#bbb;text-transform:capitalize}
-.poses-section{padding:0.9rem}
-.section-title{font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:#444;margin-bottom:0.65rem}
-.pose-item{display:flex;align-items:center;gap:10px;padding:0.45rem 0;border-bottom:1px solid #181818}
-.pose-item:last-child{border-bottom:none}
-.pose-preview{display:flex;gap:6px}
-.pose-col{display:flex;flex-direction:column;align-items:center;gap:2px}
-.pose-thumb{width:38px;height:38px;object-fit:contain;background:#0a0a0a;border-radius:2px;border:1px solid #1a1a1a;image-rendering:pixelated}
-.pose-thumb-label{font-size:0.52rem;color:#444;letter-spacing:1px;text-transform:uppercase}
-.pose-name{font-size:0.82rem;color:#ccc;flex:1}
-.sprite-missing{width:38px;height:38px;background:#0d0d0d;border:1px dashed #1e1e1e;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:0.5rem;color:#2a2a2a}
-.dl-bar{display:flex;gap:8px;padding:0.9rem;border-top:1px solid #1a1a1a;flex-wrap:wrap}
-.progress-wrap{padding:0 0.9rem 0.9rem}
-.progress-label{font-size:0.7rem;color:#666;margin-bottom:5px}
-.progress-track{background:#111;border:1px solid #1e1e1e;border-radius:3px;height:5px;overflow:hidden}
-.progress-fill{height:100%;background:#e8382a;border-radius:3px;transition:width 0.15s;width:0%}
-.progress-fill.done{background:#2a8a2a}
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg-primary:#fff;--bg-secondary:#f5f5f5;--bg-success:#e6f9ee;--bg-danger:#fdecea;
+  --text-primary:#111;--text-secondary:#666;--text-tertiary:#aaa;--text-success:#1a7a3f;--text-danger:#b71c1c;
+  --border-t:rgba(0,0,0,0.12);--border-s:rgba(0,0,0,0.2);--border-p:rgba(0,0,0,0.35);
+  --r-md:8px;--r-lg:12px;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg-primary:#1e1e1e;--bg-secondary:#2a2a2a;--bg-success:#0d3320;--bg-danger:#3b1010;
+    --text-primary:#f0f0f0;--text-secondary:#aaa;--text-tertiary:#666;--text-success:#4caf82;--text-danger:#f08080;
+    --border-t:rgba(255,255,255,0.1);--border-s:rgba(255,255,255,0.2);--border-p:rgba(255,255,255,0.35);
+  }
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--text-primary);background:var(--bg-secondary);}
+.wrap{max-width:620px;margin:0 auto;padding:2rem 1rem;}
+h1{font-size:22px;font-weight:500;margin-bottom:4px;}
+.sub{font-size:13px;color:var(--text-secondary);margin-bottom:20px;}
+.card{background:var(--bg-primary);border:0.5px solid var(--border-t);border-radius:var(--r-lg);padding:1rem 1.25rem;margin-bottom:12px;}
+.card-title{font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
+.drop{display:flex;flex-direction:column;align-items:center;gap:6px;border:1.5px dashed var(--border-s);border-radius:var(--r-md);padding:1.25rem 1rem;text-align:center;cursor:pointer;transition:border-color .15s;}
+.drop:hover{border-color:var(--border-p);}
+.drop-icon{width:30px;height:30px;border-radius:50%;background:var(--bg-secondary);display:flex;align-items:center;justify-content:center;}
+.drop-icon svg{width:14px;height:14px;stroke:var(--text-secondary);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.drop-label{font-size:13px;color:var(--text-secondary);}
+.drop-hint{font-size:11px;color:var(--text-tertiary);}
+.meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
+.metric{background:var(--bg-secondary);border-radius:var(--r-md);padding:8px 10px;}
+.metric-label{font-size:11px;color:var(--text-secondary);margin-bottom:2px;}
+.metric-val{font-size:13px;font-weight:500;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{font-size:12px;color:var(--text-secondary);font-weight:500;}
+.field input,.field select{font-family:monospace;font-size:13px;padding:7px 10px;border-radius:var(--r-md);border:0.5px solid var(--border-s);background:var(--bg-secondary);color:var(--text-primary);width:100%;}
+.field input:focus,.field select:focus{outline:none;border-color:var(--border-p);}
+.ver-row{display:flex;align-items:flex-end;gap:8px;margin-top:10px;}
+.ver-row .field{flex:1;}
+.loop-toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;user-select:none;padding-bottom:8px;}
+.loop-toggle input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--text-primary);}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+.btn{font-family:inherit;font-size:13px;font-weight:500;padding:7px 16px;border-radius:var(--r-md);border:0.5px solid var(--border-s);background:transparent;color:var(--text-primary);cursor:pointer;transition:background .12s;white-space:nowrap;}
+.btn:hover:not(:disabled){background:var(--bg-secondary);}
+.btn:active:not(:disabled){transform:scale(0.98);}
+.btn:disabled{opacity:.35;cursor:default;}
+.btn-primary{background:var(--text-primary);color:var(--bg-primary);border-color:transparent;}
+.btn-primary:hover:not(:disabled){opacity:.88;background:var(--text-primary);}
+.status{font-size:13px;padding:7px 11px;border-radius:var(--r-md);margin-top:10px;background:var(--bg-secondary);color:var(--text-secondary);display:flex;align-items:center;gap:6px;}
+.status.ok{background:var(--bg-success);color:var(--text-success);}
+.status.err{background:var(--bg-danger);color:var(--text-danger);}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;}
+.player-wrap{padding:10px;background:var(--bg-secondary);border-radius:var(--r-md);}
+audio{width:100%;border-radius:var(--r-md);}
+.player-info{font-size:11px;color:var(--text-tertiary);margin-top:6px;display:flex;justify-content:space-between;}
+.dl-meta{font-size:12px;color:var(--text-tertiary);margin-top:8px;}
 </style>
 </head>
 <body>
+<div class="wrap">
+  <h1>MCA ↔ WAV Converter</h1>
+  <p class="sub">Capcom MADP · v3/v4/v5 · DSP-ADPCM · MCAConverter-accurate</p>
 
-<header>
-  <div class="logo">OBJECTION<span>!</span></div>
-  <div class="tagline">Character Downloader</div>
-</header>
-
-<div class="card">
-  <div class="card-title">Enter Share Code</div>
-  <div class="row">
-    <input type="text" id="code-input" placeholder="e.g. AAIEGW" maxlength="12"
-      oninput="this.value=this.value.toUpperCase()"
-      onkeydown="if(event.key==='Enter')fetchCharacter()">
-    <button class="btn" id="fetch-btn" onclick="fetchCharacter()">Fetch</button>
+  <div class="card">
+    <div class="card-title">Input file</div>
+    <label class="drop">
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <span class="drop-label" id="dropText">Click to choose a .mca or .wav file</span>
+      <span class="drop-hint">.mca · .wav</span>
+      <input type="file" accept=".mca,.wav" id="fileInput" style="display:none">
+    </label>
+    <div class="meta-grid" id="metaGrid" style="display:none"></div>
   </div>
-  <div id="fetch-status"></div>
+
+  <div class="card">
+    <div class="card-title">Loop points</div>
+    <div class="row2">
+      <div class="field">
+        <label for="loopStart">Loop start (samples)</label>
+        <input type="number" id="loopStart" value="0" min="0">
+      </div>
+      <div class="field">
+        <label for="loopEnd">Loop end (samples)</label>
+        <input type="number" id="loopEnd" value="0" min="0">
+      </div>
+    </div>
+    <div class="ver-row">
+      <div class="field">
+        <label for="version">Output MCA version</label>
+        <select id="version">
+          <option value="3">v3 — RE Mercs 3D, SSF4 3D</option>
+          <option value="4" selected>v4 — EX Troopers, AA5 (default)</option>
+          <option value="5">v5 — AA6, MH4U</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Convert</div>
+    <div class="btn-row">
+      <button class="btn" id="btnDecode" disabled>MCA → WAV</button>
+      <button class="btn" id="btnEncode" disabled>WAV → MCA</button>
+    </div>
+    <div class="status" id="status" style="display:none">
+      <span class="dot"></span><span id="statusText"></span>
+    </div>
+  </div>
+
+  <div class="card" id="playerCard" style="display:none">
+    <div class="card-title">
+      <span>Preview</span>
+      <label class="loop-toggle">
+        <input type="checkbox" id="loopToggle" checked>
+        Loop playback
+      </label>
+    </div>
+    <div class="player-wrap">
+      <audio id="player" controls></audio>
+      <div class="player-info">
+        <span id="playerFile"></span>
+        <span id="playerLoopInfo"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="dlCard" style="display:none">
+    <div class="card-title">Output</div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btnDl"><span id="dlLabel">Download file</span></button>
+    </div>
+    <div class="dl-meta" id="dlMeta"></div>
+  </div>
 </div>
 
-<div id="result-area"></div>
-
 <script>
-// All known/plausible endpoint patterns — tried in order until one works
-const ENDPOINTS = [
-  code => `https://objection.lol/api/asset/share/${code}`,
-  code => `https://objection.lol/api/character/share/${code}`,
-  code => `https://objection.lol/api/assets/share/${code}`,
-  code => `https://objection.lol/api/customcharacter/share/${code}`,
-];
+// ─── State ─────────────────────────────────────────────────────────────────
+let fileData=null, fileExt="", fileName="", outBlob=null, outName="", parsedSampleRate=44100;
+const player = document.getElementById("player");
 
-// Multiple CORS proxies — fallback if one fails
-const PROXIES = [
-  url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-];
+document.getElementById("fileInput").addEventListener("change", e => { const f=e.target.files[0]; if(f) handleFile(f); });
+document.getElementById("btnDecode").addEventListener("click", decode);
+document.getElementById("btnEncode").addEventListener("click", encode);
+document.getElementById("btnDl").addEventListener("click", dlFile);
+player.addEventListener("timeupdate", handleTimeUpdate);
+document.getElementById("loopStart").addEventListener("input", updateLoopInfo);
+document.getElementById("loopEnd").addEventListener("input", updateLoopInfo);
 
-function setStatus(msg, type) {
-  document.getElementById('fetch-status').innerHTML =
-    msg ? `<div class="status ${type}">${msg}</div>` : '';
+function setStatus(msg, cls) {
+  document.getElementById("statusText").textContent = msg;
+  const el = document.getElementById("status");
+  el.className = "status " + (cls||"");
+  el.style.display = "flex";
+}
+function setMeta(pairs) {
+  const g = document.getElementById("metaGrid");
+  g.innerHTML = pairs.map(([l,v]) => `<div class="metric"><div class="metric-label">${l}</div><div class="metric-val">${v}</div></div>`).join("");
+  g.style.display = "grid";
+}
+function hex(n) { return "0x" + (n>>>0).toString(16).toUpperCase(); }
+function tick() { return new Promise(r => setTimeout(r, 20)); }
+function baseName(n) { return n.replace(/\.[^.]+$/, ""); }
+function getLS() { return parseInt(document.getElementById("loopStart").value)||0; }
+function getLE() { return parseInt(document.getElementById("loopEnd").value)||0; }
+function getVer() { return parseInt(document.getElementById("version").value)||4; }
+function isLoopEnabled() { return document.getElementById("loopToggle").checked; }
+function updateLoopInfo() {
+  const ls=getLS(), le=getLE(), sr=parsedSampleRate||44100;
+  document.getElementById("playerLoopInfo").textContent =
+    le > ls ? `Loop: ${ls.toLocaleString()} → ${le.toLocaleString()} (${((le-ls)/sr).toFixed(2)}s)` : "No loop";
 }
 
-async function tryFetch(rawUrl) {
-  for (const proxy of PROXIES) {
+async function handleFile(f) {
+  fileName = f.name; fileExt = f.name.split(".").pop().toLowerCase();
+  fileData = new Uint8Array(await f.arrayBuffer());
+  document.getElementById("dropText").textContent = f.name;
+  document.getElementById("playerCard").style.display = "none";
+  document.getElementById("dlCard").style.display = "none";
+  document.getElementById("status").style.display = "none";
+  document.getElementById("btnDecode").disabled = fileExt !== "mca";
+  document.getElementById("btnEncode").disabled = fileExt !== "wav";
+  if (fileExt === "mca") {
     try {
-      const res = await fetch(proxy(rawUrl), { signal: AbortSignal.timeout(8000) });
-      if (res.ok) {
-        const text = await res.text();
-        // Make sure it's actually JSON, not an HTML error page
-        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
-          return JSON.parse(text);
+      const m = parseMCAHeader(fileData);
+      parsedSampleRate = m.sampleRate;
+      document.getElementById("loopStart").value = m.loopStart;
+      document.getElementById("loopEnd").value = m.loopEnd;
+      setMeta([
+        ["Version","v"+m.version], ["Channels",m.channels],
+        ["Rate",m.sampleRate+" Hz"], ["Samples",m.numSamples.toLocaleString()],
+        ["Loop start",m.loopStart.toLocaleString()], ["Loop end",m.loopEnd.toLocaleString()],
+        ["Audio at",hex(m.startOffset)], ["Head",hex(m.headSize)]
+      ]);
+      updateLoopInfo();
+      setStatus("MCA v"+m.version+" parsed — "+m.channels+"ch "+m.sampleRate+" Hz", "ok");
+    } catch(e) { setStatus("MCA parse error: "+e.message, "err"); }
+  } else if (fileExt === "wav") {
+    try {
+      const w = parseWAVHeader(fileData);
+      parsedSampleRate = w.sampleRate;
+      setMeta([["Channels",w.channels],["Rate",w.sampleRate+" Hz"],["Bit depth",w.bitsPerSample+"b"],["Samples",w.numSamples.toLocaleString()]]);
+      updateLoopInfo();
+      setStatus("WAV loaded — "+w.channels+"ch "+w.sampleRate+" Hz", "ok");
+    } catch(e) { setStatus("WAV parse error: "+e.message, "err"); }
+  }
+}
+
+async function decode() {
+  setStatus("Decoding…", ""); await tick();
+  try {
+    const wav = mcaToWav(fileData);
+    const blob = new Blob([wav], {type:"audio/wav"});
+    const name = baseName(fileName)+".wav";
+    outBlob = blob; outName = name;
+    player.src = URL.createObjectURL(blob);
+    document.getElementById("playerCard").style.display = "";
+    document.getElementById("playerFile").textContent = name;
+    updateLoopInfo(); showDl(name, wav.length);
+    setStatus("Decoded → "+name, "ok");
+  } catch(e) { setStatus("Decode error: "+e.message, "err"); }
+}
+
+async function encode() {
+  setStatus("Encoding… (LPC analysis, may take a moment)", ""); await tick();
+  try {
+    const mca = wavToMca(fileData, getLS(), getLE(), getVer());
+    const blob = new Blob([mca], {type:"application/octet-stream"});
+    const name = baseName(fileName)+".mca";
+    outBlob = blob; outName = name;
+    document.getElementById("playerCard").style.display = "none";
+    showDl(name, mca.length);
+    setStatus("Encoded → "+name, "ok");
+  } catch(e) { setStatus("Encode error: "+e.message, "err"); }
+}
+
+function showDl(name, bytes) {
+  document.getElementById("dlLabel").textContent = "Download "+name;
+  document.getElementById("dlMeta").textContent = name+" · "+(bytes/1024).toFixed(1)+" KB";
+  document.getElementById("dlCard").style.display = "";
+}
+function dlFile() {
+  if (!outBlob) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(outBlob);
+  a.download = outName; a.click();
+}
+function handleTimeUpdate() {
+  if (!isLoopEnabled()) return;
+  const ls=getLS(), le=getLE(), sr=parsedSampleRate||44100;
+  if (le > ls && player.currentTime*sr >= le) player.currentTime = ls/sr;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MCA HEADER PARSER
+// Matches vgmstream mca.c / MCAConverter MCA.cs exactly.
+//
+// Offsets (LE):
+//   0x00  u32  "MADP" magic
+//   0x04  u16  version
+//   0x08  u8   channel_count
+//   0x0A  u16  interleave   (always 0x100)
+//   0x0C  u32  num_samples
+//   0x10  u16  sample_rate
+//   0x14  u32  loop_start
+//   0x18  u32  loop_end
+//   0x1C  u16  head_size    (v4+; v3 implicit = fileSize - dataSize)
+//   0x20  u32  data_size
+//   0x28  u16  coef_shift   (v4+; v3 = 0)
+//
+// Coef block per channel = 0x30 bytes: 16×s16 coefs at block base
+//   coef_block_base = headSize - 0x30*channels
+//   coef_offset     = coef_block_base + coef_shift*0x14
+// ═══════════════════════════════════════════════════════════════════════════
+function parseMCAHeader(buf) {
+  const dv = new DataView(buf.buffer, buf.byteOffset);
+  const len = buf.length;
+
+  if (buf[0]!==0x4D || buf[1]!==0x41 || buf[2]!==0x44 || buf[3]!==0x50)
+    throw new Error("Not a MADP/MCA file (bad magic)");
+
+  const version    = dv.getUint16(0x04, true);
+  const channels   = dv.getUint8(0x08);
+  const interleave = dv.getUint16(0x0A, true) || 0x100;
+  const numSamples = dv.getUint32(0x0C, true);
+  const sampleRate = dv.getUint16(0x10, true);
+  const loopStart  = dv.getUint32(0x14, true);
+  const loopEnd    = dv.getUint32(0x18, true);
+  const dataSize   = dv.getUint32(0x20, true);
+
+  if (channels < 1 || channels > 8)  throw new Error("Bad channel count: "+channels);
+  if (sampleRate < 100 || sampleRate > 192000) throw new Error("Bad sample rate: "+sampleRate);
+  if (dataSize === 0 || dataSize > len) throw new Error("Bad data_size "+hex(dataSize));
+
+  const CS = 0x30; // bytes per coef block
+  let headSize, coefShift, startOffset;
+
+  if (version <= 3) {
+    headSize    = len - dataSize;
+    coefShift   = 0;
+    startOffset = headSize;
+  } else {
+    headSize    = dv.getUint16(0x1C, true);
+    coefShift   = dv.getUint16(0x28, true);
+    startOffset = len - dataSize;
+  }
+
+  const coefBlockBase = headSize - CS * channels;
+  const coefOffset    = coefBlockBase + coefShift * 0x14;
+
+  if (startOffset < 0 || startOffset >= len)
+    throw new Error("Audio start out of range: "+hex(startOffset));
+  if (coefOffset < 0 || coefOffset + CS*channels > startOffset)
+    throw new Error("Coef block out of range: "+hex(coefOffset));
+
+  return { version, channels, interleave, numSamples, sampleRate,
+           loopStart, loopEnd, headSize, coefOffset, startOffset, dataSize };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MCA → WAV  (accurate DSP-ADPCM decode)
+// ═══════════════════════════════════════════════════════════════════════════
+function mcaToWav(buf) {
+  const m  = parseMCAHeader(buf);
+  const dv = new DataView(buf.buffer, buf.byteOffset);
+
+  // Read coef tables: 16 × s16 per channel, laid out at coefOffset + ch*0x30
+  const coefs = [];
+  for (let ch = 0; ch < m.channels; ch++) {
+    const base = m.coefOffset + ch * 0x30;
+    const c = new Int16Array(16);
+    for (let i = 0; i < 16; i++)
+      c[i] = dv.getInt16(base + i*2, true);
+    coefs.push(c);
+  }
+
+  const audioData = buf.slice(m.startOffset);
+  const pcm = dspDecode(audioData, m.channels, m.numSamples, coefs, m.interleave);
+  return buildWAV(pcm, m.channels, m.sampleRate);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DSP-ADPCM DECODER
+//
+// Frame = 8 bytes → 14 samples:
+//   byte 0 header:  bits[3:0] = scale exponent,  bits[6:4] = predictor index (0–7)
+//   bytes 1–7: 14 nibbles packed high-then-low per byte
+//
+// Decode formula (all integer):
+//   scale_val = 1 << scale_exp
+//   pred      = (coef[pi*2]*hist1 + coef[pi*2+1]*hist2 + 1024) >> 11   — NOT here
+//
+// Actually the standard NGC DSP formula used by MCAConverter/vgmstream:
+//   sample = clamp16( (nib * scale_val * 2048 + 1024 + coef1*hist1 + coef2*hist2) >> 11 )
+// where nib is sign-extended 4-bit.
+//
+// Data layout: channels interleaved in blocks of `interleave` bytes.
+// Block order: ch0_block0, ch1_block0, ..., chN_block0, ch0_block1, ...
+// ═══════════════════════════════════════════════════════════════════════════
+function dspDecode(src, channels, totalSamples, coefs, interleave) {
+  const SPF = 14;  // samples per frame
+  const BPF = 8;   // bytes per frame
+  const fpI = Math.floor(interleave / BPF);  // frames per interleave block
+
+  const out   = new Int16Array(totalSamples * channels);
+  const hist1 = new Int32Array(channels);  // most recent decoded
+  const hist2 = new Int32Array(channels);  // second most recent decoded
+  const wrote = new Int32Array(channels);  // samples written per channel
+
+  let block = 0;
+
+  outer:
+  while (true) {
+    // Check any channel still has samples to decode
+    let anyLeft = false;
+    for (let ch = 0; ch < channels; ch++) if (wrote[ch] < totalSamples) { anyLeft = true; break; }
+    if (!anyLeft) break;
+
+    for (let ch = 0; ch < channels; ch++) {
+      if (wrote[ch] >= totalSamples) continue;
+
+      const blockBase = (block * channels + ch) * interleave;
+      if (blockBase >= src.length) break outer;
+
+      for (let f = 0; f < fpI; f++) {
+        if (wrote[ch] >= totalSamples) break;
+
+        const fBase = blockBase + f * BPF;
+        if (fBase >= src.length) break;
+
+        const header    = src[fBase];
+        const scaleExp  = header & 0x0F;
+        const predIndex = (header >> 4) & 0x07;
+        const scaleVal  = 1 << scaleExp;
+        const c1 = coefs[ch][predIndex * 2];      // coef for hist1
+        const c2 = coefs[ch][predIndex * 2 + 1];  // coef for hist2
+
+        for (let s = 0; s < SPF; s++) {
+          if (wrote[ch] >= totalSamples) break;
+
+          const bytePos = fBase + 1 + (s >> 1);
+          if (bytePos >= src.length) break;
+
+          // High nibble = sample 0,2,4,…  Low nibble = sample 1,3,5,…
+          const rawNib = (s & 1) ? (src[bytePos] & 0x0F) : ((src[bytePos] >> 4) & 0x0F);
+          // Sign-extend 4-bit
+          const nib = rawNib >= 8 ? rawNib - 16 : rawNib;
+
+          let smp = ((nib * scaleVal * 2048) + 1024 + c1 * hist1[ch] + c2 * hist2[ch]) >> 11;
+          smp = smp > 32767 ? 32767 : smp < -32768 ? -32768 : smp;
+
+          hist2[ch] = hist1[ch];
+          hist1[ch] = smp;
+          out[wrote[ch] * channels + ch] = smp;
+          wrote[ch]++;
         }
       }
-    } catch { /* try next proxy */ }
-  }
-  return null;
-}
-
-async function fetchCharacter() {
-  const code = document.getElementById('code-input').value.trim().toUpperCase();
-  if (!code) { setStatus('Enter a share code first.', 'error'); return; }
-
-  const btn = document.getElementById('fetch-btn');
-  btn.disabled = true;
-  document.getElementById('result-area').innerHTML = '';
-  setStatus(`Trying to reach objection.lol…`, 'loading');
-
-  let data = null;
-  let foundEndpoint = null;
-
-  for (const ep of ENDPOINTS) {
-    const url = ep(code);
-    setStatus(`Probing endpoint: <code style="color:#aaa">${url.replace('https://objection.lol','')}</code>…`, 'loading');
-    data = await tryFetch(url);
-    if (data && (data.name || data.poses)) {
-      foundEndpoint = url;
-      break;
     }
-    data = null;
+
+    block++;
+    // Safety: stop if we'd read past the source
+    if ((block * channels) * interleave >= src.length) break;
   }
 
-  btn.disabled = false;
+  return out;
+}
 
-  if (!data) {
-    setStatus(
-      `❌ Could not fetch character.<br>
-      <span style="color:#888">Possible reasons:</span><br>
-      · The share code <strong style="color:#ccc">${code}</strong> doesn't exist or has expired<br>
-      · All CORS proxies are temporarily down — try again in a moment<br>
-      · objection.lol may have changed their API<br>
-      <br><span style="color:#555;font-size:0.7rem">Tried: ${ENDPOINTS.map(e=>e(code).replace('https://objection.lol','')).join(', ')}</span>`,
-      'error'
-    );
-    return;
+// ═══════════════════════════════════════════════════════════════════════════
+// WAV BUILDER / PARSER
+// ═══════════════════════════════════════════════════════════════════════════
+function buildWAV(pcm, channels, sampleRate) {
+  const dataBytes = pcm.length * 2;
+  const ab  = new ArrayBuffer(44 + dataBytes);
+  const dv  = new DataView(ab);
+  const ws  = (o, s) => { for (let i=0; i<s.length; i++) dv.setUint8(o+i, s.charCodeAt(i)); };
+  ws(0,"RIFF"); dv.setUint32(4, 36+dataBytes, true); ws(8,"WAVE");
+  ws(12,"fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
+  dv.setUint16(22, channels, true);
+  dv.setUint32(24, sampleRate, true);
+  dv.setUint32(28, sampleRate * channels * 2, true);
+  dv.setUint16(32, channels * 2, true);
+  dv.setUint16(34, 16, true);
+  ws(36,"data"); dv.setUint32(40, dataBytes, true);
+  new Int16Array(ab, 44).set(pcm);
+  return new Uint8Array(ab);
+}
+
+function parseWAVHeader(buf) {
+  const dv = new DataView(buf.buffer, buf.byteOffset);
+  if (buf[0]!==0x52 || buf[1]!==0x49 || buf[2]!==0x46 || buf[3]!==0x46)
+    throw new Error("Not a RIFF WAV");
+  const channels     = dv.getUint16(22, true);
+  const sampleRate   = dv.getUint32(24, true);
+  const bitsPerSample= dv.getUint16(34, true);
+  if (bitsPerSample !== 16) throw new Error("Only 16-bit PCM WAV supported");
+  // Scan for 'data' chunk
+  let off = 12;
+  while (off < buf.length - 8) {
+    const id = String.fromCharCode(buf[off], buf[off+1], buf[off+2], buf[off+3]);
+    const sz = dv.getUint32(off+4, true);
+    if (id === "data") return { channels, sampleRate, bitsPerSample,
+      numSamples: Math.floor(sz / (channels*2)), dataOffset: off+8, dataSize: sz };
+    off += 8 + sz + (sz & 1);
+  }
+  throw new Error("No data chunk in WAV");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAV → MCA ENCODER
+//
+// Header layout written (all LE):
+//   0x00  "MADP"
+//   0x04  version (u16)
+//   0x08  channels (u8)
+//   0x0A  interleave = 0x100 (u16)
+//   0x0C  numSamples (u32)
+//   0x10  sampleRate (u16)
+//   0x14  loopStart (u32)
+//   0x18  loopEnd (u32)
+//   0x1C  headSize (u16)  — v4+; v3 writes 0
+//   0x20  dataSize (u32)
+//   0x28  coefShift = 0 (u16) — v4+
+//   0x30  coef blocks: channels × 0x30 bytes each
+//         Each block: 16 × s16 coefs, then 0x10 bytes zero padding
+//   [audio data interleaved]
+// ═══════════════════════════════════════════════════════════════════════════
+function wavToMca(buf, loopStart=0, loopEnd=0, version=4) {
+  const { channels, sampleRate, numSamples, dataOffset, dataSize } = parseWAVHeader(buf);
+  const pcm = new Int16Array(buf.buffer, buf.byteOffset + dataOffset, dataSize >> 1);
+
+  const INTERLEAVE  = 0x100;
+  const SPF         = 14;           // samples per DSP frame
+  const BPF         = 8;            // bytes per DSP frame
+  const CS          = 0x30;         // bytes per coef block
+  const FIXED_HDR   = 0x30;         // fixed header size before coef blocks
+
+  const headSize    = FIXED_HDR + channels * CS;
+  const framesPerCh = Math.ceil(numSamples / SPF);
+  const fpI         = Math.floor(INTERLEAVE / BPF);  // 32 frames per interleave block
+  const totalBlocks = Math.ceil(framesPerCh / fpI);
+  const audioBytes  = totalBlocks * channels * INTERLEAVE;
+
+  // Encode each channel
+  const chCoefs   = [];
+  const chEncoded = [];
+  for (let ch = 0; ch < channels; ch++) {
+    const mono = new Int16Array(numSamples);
+    for (let s = 0; s < numSamples; s++) mono[s] = pcm[s * channels + ch];
+    const coefs = dspCorrelateCoefs(mono);
+    chCoefs.push(coefs);
+    chEncoded.push(encodeMono(mono, coefs));
   }
 
-  setStatus('', '');
-  renderResult(data, code, foundEndpoint);
-}
+  // Allocate output
+  const out = new Uint8Array(headSize + audioBytes);
+  const dv  = new DataView(out.buffer);
 
-function renderResult(d, code, endpoint) {
-  const locMap = {1:'Defense',2:'Prosecution',3:'Witness',4:'Judge',5:'Counsel',6:'Unknown'};
-  const loc = locMap[d.location] || (''+d.location) || 'Unknown';
-  const poses = d.poses || [];
-  const thumb = d.galleryImageUrl || poses[0]?.idleImageUrl || '';
+  // Magic "MADP"
+  out[0]=0x4D; out[1]=0x41; out[2]=0x44; out[3]=0x50;
 
-  const posesHtml = poses.map((p, i) => {
-    const label = p.name || `Pose ${i+1}`;
-    const mk = (url, type) => url
-      ? `<div class="pose-col"><img class="pose-thumb" src="${url}" onerror="this.parentElement.innerHTML='<div class=sprite-missing>✕</div><div class=pose-thumb-label>${type}</div>'" alt="${type}"><div class="pose-thumb-label">${type}</div></div>`
-      : `<div class="pose-col"><div class="sprite-missing">—</div><div class="pose-thumb-label">${type}</div></div>`;
-    return `<div class="pose-item">
-      <div class="pose-preview">${mk(p.idleImageUrl,'IDLE')}${mk(p.talkImageUrl,'TALK')}</div>
-      <span class="pose-name">${label}</span>
-    </div>`;
-  }).join('');
+  dv.setUint16(0x04, version,    true);
+  out[0x08] = channels;
+  dv.setUint16(0x0A, INTERLEAVE, true);
+  dv.setUint32(0x0C, numSamples, true);
+  dv.setUint16(0x10, sampleRate, true);
+  dv.setUint32(0x14, loopStart,  true);
+  dv.setUint32(0x18, loopEnd,    true);
 
-  document.getElementById('result-area').innerHTML = `
-    <div class="char-result">
-      <div class="char-header">
-        ${thumb ? `<img class="char-avatar" src="${thumb}" onerror="this.style.display='none'" alt="">` : ''}
-        <div>
-          <div class="char-name">${d.name || 'Unknown'}</div>
-          <div class="char-sub">Code: ${code}&nbsp;&nbsp;·&nbsp;&nbsp;${poses.length} pose${poses.length!==1?'s':''}</div>
-        </div>
-      </div>
-      <div class="char-meta">
-        <div class="meta-item"><div class="meta-label">Nameplate</div><div class="meta-value">${d.nameplate||'—'}</div></div>
-        <div class="meta-item"><div class="meta-label">Location</div><div class="meta-value">${loc}</div></div>
-        <div class="meta-item"><div class="meta-label">Speech Blip</div><div class="meta-value">${d.speechBlip||'—'}</div></div>
-        <div class="meta-item"><div class="meta-label">Side</div><div class="meta-value">${d.imageSide||'—'}</div></div>
-      </div>
-      <div class="poses-section">
-        <div class="section-title">Poses &amp; Sprites</div>
-        ${posesHtml || '<div style="color:#444;font-size:0.8rem">No poses found</div>'}
-      </div>
-      <div class="dl-bar">
-        <button class="btn" id="zip-btn" onclick="downloadZip()">⬇ Download ZIP</button>
-        <button class="btn btn-ghost btn-sm" onclick="downloadJson()">JSON only</button>
-      </div>
-      <div id="zip-progress" style="display:none" class="progress-wrap">
-        <div class="progress-label" id="prog-label">Preparing…</div>
-        <div class="progress-track"><div class="progress-fill" id="prog-fill"></div></div>
-      </div>
-    </div>`;
+  if (version <= 3) {
+    // v3: no explicit headSize / coefShift fields
+    dv.setUint32(0x20, audioBytes, true);
+  } else {
+    // v4 / v5
+    dv.setUint16(0x1C, headSize,   true);
+    dv.setUint32(0x20, audioBytes, true);
+    dv.setUint16(0x28, 0,          true);  // coefShift = 0
+  }
 
-  window._char = d;
-  window._code = code;
-}
+  // Write coef blocks at FIXED_HDR offset
+  for (let ch = 0; ch < channels; ch++) {
+    const base = FIXED_HDR + ch * CS;
+    for (let i = 0; i < 16; i++)
+      dv.setInt16(base + i*2, chCoefs[ch][i], true);
+    // Remaining 0x10 bytes stay zero (history, padding)
+  }
 
-function ext(url) {
-  try { const m = new URL(url).pathname.match(/\.(gif|png|jpg|jpeg|webp)$/i); return m?m[0]:'.gif'; }
-  catch { return '.gif'; }
-}
-
-async function downloadZip() {
-  const d = window._char, code = window._code;
-  if (!d) return;
-
-  const zipBtn = document.getElementById('zip-btn');
-  const progWrap = document.getElementById('zip-progress');
-  const progLabel = document.getElementById('prog-label');
-  const progFill = document.getElementById('prog-fill');
-
-  zipBtn.disabled = true;
-  progWrap.style.display = 'block';
-  progFill.classList.remove('done');
-
-  const zip = new JSZip();
-  const folderName = (d.name||code).replace(/[^a-z0-9]/gi,'_');
-  const folder = zip.folder(folderName);
-
-  folder.file('character.json', JSON.stringify(d, null, 2));
-
-  const poses = d.poses || [];
-  const jobs = [];
-
-  poses.forEach((p, i) => {
-    const pn = (p.name||`pose_${i+1}`).replace(/[^a-z0-9]/gi,'_');
-    if (p.idleImageUrl) jobs.push({ url: p.idleImageUrl, path: `sprites/${pn}_idle${ext(p.idleImageUrl)}` });
-    if (p.talkImageUrl) jobs.push({ url: p.talkImageUrl, path: `sprites/${pn}_talk${ext(p.talkImageUrl)}` });
-  });
-  if (d.galleryImageUrl) jobs.push({ url: d.galleryImageUrl, path: `gallery${ext(d.galleryImageUrl)}` });
-
-  let done = 0;
-  const total = jobs.length;
-
-  const tick = () => {
-    done++;
-    const pct = total > 0 ? Math.round(done/total*100) : 100;
-    progFill.style.width = pct + '%';
-    progLabel.textContent = `Downloading sprites… ${done}/${total}`;
-  };
-
-  await Promise.all(jobs.map(async ({ url, path }) => {
-    let blob = null;
-    for (const proxy of PROXIES) {
-      try {
-        const res = await fetch(proxy(url), { signal: AbortSignal.timeout(10000) });
-        if (res.ok) { blob = await res.blob(); break; }
-      } catch { /* try next */ }
+  // Interleave encoded audio into output
+  for (let b = 0; b < totalBlocks; b++) {
+    for (let ch = 0; ch < channels; ch++) {
+      const src    = chEncoded[ch];
+      const srcOff = b * INTERLEAVE;
+      const dstOff = headSize + (b * channels + ch) * INTERLEAVE;
+      const count  = Math.min(INTERLEAVE, src.length - srcOff);
+      if (count > 0) out.set(src.subarray(srcOff, srcOff + count), dstOff);
+      // Remainder of interleave block stays zero (padding)
     }
-    if (blob) folder.file(path, blob);
-    tick();
-  }));
+  }
 
-  progLabel.textContent = 'Building ZIP…';
-  const blob = await zip.generateAsync({ type:'blob', compression:'DEFLATE', compressionOptions:{level:6} });
-
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `${folderName}_${code}.zip`;
-  a.click();
-
-  progLabel.textContent = `✓ Done! ${done}/${total} sprites downloaded.`;
-  progFill.classList.add('done');
-  zipBtn.disabled = false;
+  return out;
 }
 
-function downloadJson() {
-  const d = window._char, code = window._code;
-  if (!d) return;
-  const name = (d.name||code).replace(/[^a-z0-9]/gi,'_');
-  const a = Object.assign(document.createElement('a'), {
-    href: URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'})),
-    download: `${name}_${code}.json`
-  });
-  a.click();
+// ═══════════════════════════════════════════════════════════════════════════
+// LPC COEF DERIVATION — port of DSPCorrelateCoefs() from grok.c
+//
+// Derives 8 optimal predictor coefficient pairs via autocorrelation / LPC
+// clustering (Nintendo's standard DSP encoder algorithm).
+// ═══════════════════════════════════════════════════════════════════════════
+function dspCorrelateCoefs(pcm) {
+  const numFrames = Math.ceil(pcm.length / 14);
+
+  const records = [];
+
+  // Two-frame sliding window of sample data
+  const wnd = [new Float64Array(14), new Float64Array(14)];
+
+  for (let fi = 0; fi < numFrames; fi++) {
+    // Shift: current becomes previous
+    for (let z = 0; z < 14; z++) wnd[0][z] = wnd[1][z];
+    for (let z = 0; z < 14; z++) wnd[1][z] = (fi*14+z < pcm.length) ? pcm[fi*14+z] : 0.0;
+
+    const v1 = innerProductMerge(wnd[1]);
+    if (Math.abs(v1[0]) > 10.0) {
+      const mtx = outerProductMerge(wnd[1]);
+      const vi = [0, 0, 0];
+      if (!analyzeRanges(mtx, vi)) {
+        bidirectionalFilter(mtx, vi, v1);
+        if (!quadraticMerge(v1)) {
+          const rec = new Float64Array(3);
+          finishRecord(v1, rec);
+          records.push(rec);
+        }
+      }
+    }
+  }
+
+  const vecBest = Array.from({length:8}, () => new Float64Array(3));
+
+  if (records.length === 0) {
+    // Silence — zero coefs
+    return new Int16Array(16);
+  }
+
+  // Average all records to seed the first centroid
+  const avg = new Float64Array([1.0, 0.0, 0.0]);
+  for (const r of records) {
+    const tmp = new Float64Array(3);
+    matrixFilter(r, tmp);
+    for (let y = 1; y <= 2; y++) avg[y] += tmp[y];
+  }
+  for (let y = 1; y <= 2; y++) avg[y] /= records.length;
+  mergeFinishRecord(avg, vecBest[0]);
+
+  // K-means doubling: 1 → 2 → 4 → 8 centroids
+  let exp = 1;
+  for (let w = 0; w < 3; w++) {
+    const vec2 = new Float64Array([0.0, -1.0, 0.0]);
+    for (let i = 0; i < exp; i++)
+      for (let y = 0; y <= 2; y++) vecBest[exp + i][y] = 0.01 * vec2[y] + vecBest[i][y];
+    exp <<= 1;
+    filterRecords(vecBest, exp, records);
+  }
+  filterRecords(vecBest, 8, records);
+
+  // Convert float LPC coefficients → Q11 int16 pairs
+  const out = new Int16Array(16);
+  for (let z = 0; z < 8; z++) {
+    let d = -vecBest[z][1] * 2048.0;
+    out[z*2]   = Math.round(d > 32767 ? 32767 : d < -32768 ? -32768 : d);
+    d = -vecBest[z][2] * 2048.0;
+    out[z*2+1] = Math.round(d > 32767 ? 32767 : d < -32768 ? -32768 : d);
+  }
+  return out;
+}
+
+// ─── LPC helper functions ──────────────────────────────────────────────────
+
+function innerProductMerge(b) {
+  const v = new Float64Array(3);
+  for (let i = 0; i <= 2; i++) {
+    v[i] = 0.0;
+    for (let x = 0; x < 14; x++) v[i] -= (b[x]||0.0) * (x >= i ? b[x-i] : 0.0);
+  }
+  return v;
+}
+
+function outerProductMerge(b) {
+  const mtx = [null, [null, 0.0, 0.0], [null, 0.0, 0.0]];
+  for (let x = 1; x <= 2; x++)
+    for (let y = 1; y <= 2; y++) {
+      let s = 0.0;
+      for (let z = 0; z < 14; z++) s += (z >= x ? b[z-x] : 0.0) * (z >= y ? b[z-y] : 0.0);
+      mtx[x][y] = s;
+    }
+  return mtx;
+}
+
+function analyzeRanges(mtx, vi) {
+  const rec = [0.0, 0.0, 0.0];
+  for (let x = 1; x <= 2; x++) {
+    const val = Math.max(Math.abs(mtx[x][1]), Math.abs(mtx[x][2]));
+    if (val < Number.EPSILON) return true;
+    rec[x] = 1.0 / val;
+  }
+  let mi = 0;
+  for (let i = 1; i <= 2; i++) {
+    for (let x = 1; x < i; x++) {
+      let t = mtx[x][i];
+      for (let y = 1; y < x; y++) t -= mtx[x][y] * mtx[y][i];
+      mtx[x][i] = t;
+    }
+    let val = 0.0;
+    for (let x = i; x <= 2; x++) {
+      let t = mtx[x][i];
+      for (let y = 1; y < i; y++) t -= mtx[x][y] * mtx[y][i];
+      mtx[x][i] = t;
+      const q = Math.abs(t) * rec[x];
+      if (q >= val) { val = q; mi = x; }
+    }
+    if (mi !== i) {
+      for (let y = 1; y <= 2; y++) { const t = mtx[mi][y]; mtx[mi][y] = mtx[i][y]; mtx[i][y] = t; }
+      rec[mi] = rec[i];
+    }
+    vi[i] = mi;
+    if (mtx[i][i] === 0) return true;
+    if (i !== 2) { const t = 1.0 / mtx[i][i]; for (let x = i+1; x <= 2; x++) mtx[x][i] *= t; }
+  }
+  const mn = Math.min(Math.abs(mtx[1][1]), Math.abs(mtx[2][2]));
+  const mx = Math.max(Math.abs(mtx[1][1]), Math.abs(mtx[2][2]));
+  return mn / mx < 1e-10;
+}
+
+function bidirectionalFilter(mtx, vi, vo) {
+  let x = 0;
+  for (let i = 1; i <= 2; i++) {
+    const idx = vi[i]; let t = vo[idx]; vo[idx] = vo[i];
+    if (x !== 0) for (let y = x; y <= i-1; y++) t -= vo[y] * mtx[i][y];
+    else if (t !== 0) x = i;
+    vo[i] = t;
+  }
+  for (let i = 2; i > 0; i--) {
+    let t = vo[i];
+    for (let y = i+1; y <= 2; y++) t -= vo[y] * mtx[i][y];
+    vo[i] = t / mtx[i][i];
+  }
+  vo[0] = 1.0;
+}
+
+function quadraticMerge(v) {
+  const v2 = v[2], tmp = 1.0 - v2*v2;
+  if (tmp === 0) return true;
+  v[0] = (v[0] - v2*v2) / tmp;
+  v[1] = (v[1] - v[1]*v2) / tmp;
+  return Math.abs(v[1]) > 1.0;
+}
+
+function finishRecord(inp, out) {
+  const v = new Float64Array(inp);
+  for (let z = 1; z <= 2; z++) {
+    if      (v[z] >=  1.0) v[z] =  0.9999999999;
+    else if (v[z] <= -1.0) v[z] = -0.9999999999;
+  }
+  out[0] = 1.0;
+  out[1] = v[2]*v[1] + v[1];
+  out[2] = v[2];
+}
+
+function matrixFilter(src, dst) {
+  const mtx = [null, [null, 0.0, 0.0], [null, 0.0, 0.0]];
+  mtx[2][0] = 1.0;
+  for (let i = 1; i <= 2; i++) mtx[2][i] = -src[i];
+  for (let i = 2; i > 0; i--) {
+    const val = 1.0 - (mtx[i][i] * mtx[i][i]);
+    for (let y = 1; y <= i; y++)
+      mtx[i-1][y] = ((mtx[i][i] * mtx[i][y]) + mtx[i][y]) / val;
+  }
+  dst[0] = 1.0;
+  for (let i = 1; i <= 2; i++) {
+    dst[i] = 0.0;
+    for (let y = 1; y <= i; y++) dst[i] += mtx[i][y] * dst[i-y];
+  }
+}
+
+function mergeFinishRecord(src, dst) {
+  let val = src[0];
+  dst[0] = 1.0;
+  const tmp = new Float64Array(3);
+  for (let i = 1; i <= 2; i++) {
+    let v2 = 0.0;
+    for (let y = 1; y < i; y++) v2 += dst[y] * src[i-y];
+    dst[i] = val > 0 ? -(v2 + src[i]) / val : 0.0;
+    tmp[i] = dst[i];
+    for (let y = 1; y < i; y++) dst[y] += dst[i] * dst[i-y];
+    val *= 1.0 - (dst[i] * dst[i]);
+  }
+  finishRecord(tmp, dst);
+}
+
+function contrastVectors(s1, s2) {
+  const val = (s2[2]*s2[1] + -s2[1]) / (1.0 - s2[2]*s2[2]);
+  const v1 = s1[0]*s1[0] + s1[1]*s1[1] + s1[2]*s1[2];
+  const v2 = s1[0]*s1[1] + s1[1]*s1[2];
+  const v3 = s1[0]*s1[2];
+  return v1 + 2.0*val*v2 + 2.0*(-s2[1]*val + -s2[2])*v3;
+}
+
+function filterRecords(vecBest, exp, records) {
+  for (let x = 0; x < 2; x++) {
+    const cnt     = new Int32Array(exp);
+    const bufList = Array.from({length:exp}, () => new Float64Array(3));
+    for (const rec of records) {
+      let idx = 0, best = 1e30;
+      for (let i = 0; i < exp; i++) {
+        const v = contrastVectors(vecBest[i], rec);
+        if (v < best) { best = v; idx = i; }
+      }
+      cnt[idx]++;
+      const tmp = new Float64Array(3);
+      matrixFilter(rec, tmp);
+      for (let i = 0; i <= 2; i++) bufList[idx][i] += tmp[i];
+    }
+    for (let i = 0; i < exp; i++) {
+      if (cnt[i] > 0) for (let y = 0; y <= 2; y++) bufList[i][y] /= cnt[i];
+      mergeFinishRecord(bufList[i], vecBest[i]);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DSP FRAME ENCODER — port of DSPEncodeFrame() from grok.c
+//
+// Layout of pcmBuf (Int32Array, length SPF+2):
+//   [0]       = hist2 (second-oldest sample, input/output)
+//   [1]       = hist1 (most recent sample, input/output)
+//   [2..SPF+1] = input PCM samples; overwritten with reconstructed values
+//
+// coefsFlat: Int16Array[16] — coef pairs [c1a,c1b, c2a,c2b, ... c8a,c8b]
+//   For predictor i: coef_for_hist1 = coefsFlat[i*2], coef_for_hist2 = coefsFlat[i*2+1]
+//
+// Returns Uint8Array[8] — one encoded ADPCM frame
+// ═══════════════════════════════════════════════════════════════════════════
+function dspEncodeFrame(pcmBuf, sampleCount, coefsFlat) {
+  const SPF = 14;
+
+  // Per-predictor running reconstructed sample buffers
+  // inS[i][0] = hist2, inS[i][1] = hist1, inS[i][2..] = reconstructed samples
+  const inS   = Array.from({length:8}, () => new Int32Array(SPF + 2));
+  const outN  = Array.from({length:8}, () => new Int8Array(SPF));  // nibbles
+  const scale = new Int32Array(8);
+  const dist  = new Float64Array(8);
+
+  for (let i = 0; i < 8; i++) {
+    const c1 = coefsFlat[i*2];      // coefficient for hist1
+    const c2 = coefsFlat[i*2 + 1]; // coefficient for hist2
+
+    // Seed history from the shared pcmBuf
+    inS[i][0] = pcmBuf[0];  // hist2
+    inS[i][1] = pcmBuf[1];  // hist1
+
+    // Pass 1: find the raw prediction error range to choose initial scale
+    let maxErr = 0;
+    for (let s = 0; s < sampleCount; s++) {
+      // Prediction using reconstructed history
+      // inS[i][s] = hist2 position, inS[i][s+1] = hist1 position
+      const pred = ((c1 * inS[i][s+1]) + (c2 * inS[i][s])) >> 11;
+      inS[i][s+2] = pred;  // temp store pred, will overwrite in pass 2
+      const err = pcmBuf[s+2] - pred;
+      const clamped = err > 32767 ? 32767 : err < -32768 ? -32768 : err;
+      if (Math.abs(clamped) > Math.abs(maxErr)) maxErr = clamped;
+    }
+
+    // Determine minimum scale that fits maxErr into signed nibble range [-8, 7]
+    scale[i] = 0;
+    {
+      let tmp = maxErr;
+      while (scale[i] <= 12 && (tmp > 7 || tmp < -8)) { scale[i]++; tmp = (tmp / 2) | 0; }
+    }
+    scale[i] = scale[i] <= 1 ? -1 : scale[i] - 2;
+
+    // Pass 2: iteratively encode until all nibbles fit (scale[i] is adjusted up as needed)
+    let overflow = 0;
+    do {
+      scale[i]++;
+      dist[i]  = 0.0;
+      overflow = 0;
+
+      // Reset history for this scale attempt
+      inS[i][0] = pcmBuf[0];
+      inS[i][1] = pcmBuf[1];
+
+      for (let s = 0; s < sampleCount; s++) {
+        // Accumulate prediction in Q11 (not shifted yet)
+        const predQ = (c1 * inS[i][s+1]) + (c2 * inS[i][s]);
+
+        // Error = (sample << 11) - predQ,  then scale down
+        const scaleVal = 1 << scale[i];
+        const errQ = ((pcmBuf[s+2] << 11) - predQ);
+
+        // Quantize to nibble, rounding away from zero
+        let nib = errQ > 0
+          ? Math.floor(errQ / (scaleVal * 2048) + 0.4999999)
+          : Math.ceil (errQ / (scaleVal * 2048) - 0.4999999);
+
+        // Clamp to signed 4-bit [-8, 7], track overflow magnitude
+        if (nib < -8) {
+          const ov = -8 - nib; if (ov > overflow) overflow = ov; nib = -8;
+        } else if (nib > 7) {
+          const ov = nib - 7;  if (ov > overflow) overflow = ov; nib = 7;
+        }
+        outN[i][s] = nib;
+
+        // Reconstruct: decode the quantized nibble back
+        let rv = (predQ + nib * scaleVal * 2048 + 1024) >> 11;
+        rv = rv > 32767 ? 32767 : rv < -32768 ? -32768 : rv;
+        inS[i][s+2] = rv;
+
+        const d = pcmBuf[s+2] - rv;
+        dist[i] += d * d;
+      }
+
+      // If overflow occurred, bump scale (grok.c: for(x=index+8; x>256; x>>=1) scale++)
+      for (let x = overflow + 8; x > 256; x >>= 1)
+        if (++scale[i] >= 12) { scale[i] = 11; break; }
+
+    } while (scale[i] < 12 && overflow > 1);
+  }
+
+  // Select predictor with minimum squared error
+  let best = 0, minDist = Infinity;
+  for (let i = 0; i < 8; i++) if (dist[i] < minDist) { minDist = dist[i]; best = i; }
+
+  // Write reconstructed samples back into pcmBuf for next frame's history
+  for (let s = 0; s < sampleCount; s++) pcmBuf[s+2] = inS[best][s+2];
+
+  // Pack frame bytes:
+  //   byte 0: (predictor_index << 4) | (scale & 0xF)
+  //   bytes 1–7: 14 nibbles, high-then-low per byte
+  const frame = new Uint8Array(8);
+  frame[0] = ((best & 0x7) << 4) | (scale[best] & 0x0F);
+  for (let y = 0; y < 7; y++)
+    frame[y+1] = ((outN[best][y*2] & 0x0F) << 4) | (outN[best][y*2+1] & 0x0F);
+
+  return frame;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MONO ENCODER — drives dspEncodeFrame frame by frame, returns raw ADPCM data
+// Output is zero-padded to a whole number of interleave blocks.
+// ═══════════════════════════════════════════════════════════════════════════
+function encodeMono(pcm, coefs) {
+  const SPF        = 14;
+  const BPF        = 8;
+  const INTERLEAVE = 0x100;
+  const fpI        = Math.floor(INTERLEAVE / BPF);  // 32 frames per block
+
+  const frames      = Math.ceil(pcm.length / SPF);
+  const totalBlocks = Math.ceil(frames / fpI);
+  const outSize     = totalBlocks * INTERLEAVE;
+  const out         = new Uint8Array(outSize);  // zero-padded
+
+  // pcmBuf: [hist2, hist1, s0, s1, ..., s13]
+  const pcmBuf = new Int32Array(SPF + 2);  // starts as all zeros
+
+  for (let f = 0; f < frames; f++) {
+    const base  = f * SPF;
+    const count = Math.min(SPF, pcm.length - base);
+
+    // Load input samples into pcmBuf[2..count+1]; pad remainder with 0
+    for (let s = 0; s < count; s++) pcmBuf[s+2] = pcm[base + s];
+    for (let s = count; s < SPF; s++) pcmBuf[s+2] = 0;
+
+    // Encode this frame (pcmBuf[2..] overwritten with reconstructed samples)
+    const frame = dspEncodeFrame(pcmBuf, count, coefs);
+    out.set(frame, f * BPF);
+
+    // Roll history for the next frame:
+    //   new hist2 = reconstructed sample at position (count-1): pcmBuf[count]   (index = count-1+2 = count+1... wait)
+    //   pcmBuf layout: [0]=hist2,[1]=hist1,[2]=s0,...,[count+1]=s_{count-1}
+    //   so last reconstructed = pcmBuf[count+1], second-last = pcmBuf[count]
+    pcmBuf[0] = count >= 2 ? pcmBuf[count]   : pcmBuf[count+1];  // hist2
+    pcmBuf[1] = pcmBuf[count+1];                                   // hist1
+  }
+
+  return out;
 }
 </script>
 </body>
