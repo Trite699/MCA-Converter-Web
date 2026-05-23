@@ -1,1401 +1,533 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MCA ↔ WAV Converter</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg: #1a1a1a;
-    --bg2: #222222;
-    --bg3: #2a2a2a;
-    --bg4: #333333;
-    --border: #3a3a3a;
-    --border2: #444;
-    --text: #e8e8e8;
-    --text2: #aaa;
-    --text3: #666;
-    --accent: #4ade80;
-    --accent2: #22c55e;
-    --accent-dim: rgba(74,222,128,0.12);
-    --accent-dim2: rgba(74,222,128,0.06);
-    --danger: #f87171;
-    --warning: #fbbf24;
-    --info: #60a5fa;
-    --mono: 'JetBrains Mono', monospace;
-    --sans: 'Inter', sans-serif;
-    --radius: 8px;
-    --radius-lg: 12px;
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg-primary:#fff;--bg-secondary:#f5f5f5;--bg-success:#e6f9ee;--bg-danger:#fdecea;
+  --text-primary:#111;--text-secondary:#666;--text-tertiary:#aaa;--text-success:#1a7a3f;--text-danger:#b71c1c;
+  --border-t:rgba(0,0,0,0.12);--border-s:rgba(0,0,0,0.2);--border-p:rgba(0,0,0,0.35);
+  --r-md:8px;--r-lg:12px;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg-primary:#1e1e1e;--bg-secondary:#2a2a2a;--bg-success:#0d3320;--bg-danger:#3b1010;
+    --text-primary:#f0f0f0;--text-secondary:#aaa;--text-tertiary:#666;--text-success:#4caf82;--text-danger:#f08080;
+    --border-t:rgba(255,255,255,0.1);--border-s:rgba(255,255,255,0.2);--border-p:rgba(255,255,255,0.35);
   }
-
-  body {
-    font-family: var(--sans);
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    padding: 0;
-    line-height: 1.5;
-  }
-
-  .app-wrapper {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 2rem 1.5rem 4rem;
-  }
-
-  .app-header {
-    margin-bottom: 2.5rem;
-  }
-
-  .app-title {
-    font-family: var(--mono);
-    font-size: 1.6rem;
-    font-weight: 600;
-    color: var(--text);
-    letter-spacing: -0.02em;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .app-title .arrow {
-    color: var(--text3);
-    font-weight: 400;
-  }
-
-  .app-subtitle {
-    font-family: var(--mono);
-    font-size: 0.72rem;
-    color: var(--text3);
-    margin-top: 0.4rem;
-    letter-spacing: 0.02em;
-  }
-
-  .section {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .section-label {
-    font-family: var(--mono);
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: var(--text3);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    margin-bottom: 1rem;
-  }
-
-  .drop-zone {
-    border: 1.5px dashed var(--border2);
-    border-radius: var(--radius);
-    padding: 2.5rem 1rem;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-    position: relative;
-  }
-
-  .drop-zone:hover, .drop-zone.drag-over {
-    border-color: var(--accent);
-    background: var(--accent-dim2);
-  }
-
-  .drop-zone input[type="file"] {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-    width: 100%;
-    height: 100%;
-  }
-
-  .drop-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 1.5px solid var(--border2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 0.75rem;
-    color: var(--text3);
-  }
-
-  .drop-icon svg { width: 18px; height: 18px; }
-
-  .drop-filename {
-    font-family: var(--mono);
-    font-size: 0.95rem;
-    font-weight: 500;
-    color: var(--text);
-    margin-bottom: 0.25rem;
-  }
-
-  .drop-hint {
-    font-family: var(--mono);
-    font-size: 0.72rem;
-    color: var(--text3);
-  }
-
-  .info-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.6rem;
-    margin-top: 1rem;
-  }
-
-  .info-card {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 0.7rem 0.9rem;
-  }
-
-  .info-label {
-    font-family: var(--mono);
-    font-size: 0.62rem;
-    color: var(--text3);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    margin-bottom: 0.3rem;
-  }
-
-  .info-value {
-    font-family: var(--mono);
-    font-size: 1.05rem;
-    font-weight: 500;
-    color: var(--text);
-  }
-
-  .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-bottom: 1rem;
-  }
-
-  .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
-
-  .form-label {
-    font-size: 0.78rem;
-    color: var(--text2);
-    font-weight: 400;
-  }
-
-  .form-input {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 0.88rem;
-    padding: 0.55rem 0.75rem;
-    outline: none;
-    transition: border-color 0.15s;
-    width: 100%;
-  }
-
-  .form-input:focus { border-color: var(--border2); }
-
-  .form-select {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 0.85rem;
-    padding: 0.55rem 0.75rem;
-    outline: none;
-    width: 100%;
-    cursor: pointer;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.75rem center;
-    padding-right: 2.2rem;
-  }
-
-  .btn-group {
-    display: flex;
-    gap: 0.6rem;
-  }
-
-  .btn {
-    font-family: var(--mono);
-    font-size: 0.82rem;
-    font-weight: 500;
-    padding: 0.6rem 1.2rem;
-    border-radius: var(--radius);
-    border: 1px solid var(--border2);
-    cursor: pointer;
-    transition: all 0.12s;
-    color: var(--text2);
-    background: var(--bg3);
-    letter-spacing: 0.02em;
-  }
-
-  .btn:hover:not(:disabled) { border-color: var(--text3); color: var(--text); background: var(--bg4); }
-  .btn:active:not(:disabled) { transform: scale(0.98); }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  .btn-primary {
-    background: var(--accent-dim);
-    border-color: var(--accent2);
-    color: var(--accent);
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    background: rgba(74,222,128,0.2);
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
-  .status-bar {
-    border-radius: var(--radius);
-    padding: 0.65rem 1rem;
-    font-family: var(--mono);
-    font-size: 0.8rem;
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    margin-top: 0.75rem;
-  }
-
-  .status-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .status-ok { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(74,222,128,0.2); }
-  .status-ok .status-dot { background: var(--accent); }
-  .status-err { background: rgba(248,113,113,0.1); color: var(--danger); border: 1px solid rgba(248,113,113,0.2); }
-  .status-err .status-dot { background: var(--danger); }
-  .status-info { background: rgba(96,165,250,0.08); color: var(--info); border: 1px solid rgba(96,165,250,0.15); }
-  .status-info .status-dot { background: var(--info); }
-  .status-warn { background: rgba(251,191,36,0.08); color: var(--warning); border: 1px solid rgba(251,191,36,0.15); }
-  .status-warn .status-dot { background: var(--warning); }
-
-  .player-section {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 1rem;
-    display: none;
-  }
-
-  .player-section.visible { display: block; }
-
-  .player-track-name {
-    font-family: var(--mono);
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text);
-    margin-bottom: 0.3rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .player-meta {
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    color: var(--text3);
-    margin-bottom: 1rem;
-  }
-
-  .progress-wrap {
-    position: relative;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .progress-time {
-    font-family: var(--mono);
-    font-size: 0.72rem;
-    color: var(--text3);
-    white-space: nowrap;
-    min-width: 38px;
-  }
-
-  .progress-bar-wrap {
-    flex: 1;
-    position: relative;
-    height: 4px;
-    background: var(--bg4);
-    border-radius: 2px;
-    cursor: pointer;
-  }
-
-  .progress-fill {
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    background: var(--accent);
-    border-radius: 2px;
-    pointer-events: none;
-    transition: width 0.1s linear;
-  }
-
-  .loop-region {
-    position: absolute;
-    top: 0;
-    height: 100%;
-    background: rgba(74,222,128,0.18);
-    border-radius: 2px;
-    pointer-events: none;
-  }
-
-  .progress-thumb {
-    position: absolute;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: 12px;
-    height: 12px;
-    background: var(--accent);
-    border-radius: 50%;
-    pointer-events: none;
-    transition: left 0.1s linear;
-  }
-
-  .player-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .ctrl-btn {
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--text2);
-    cursor: pointer;
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.12s;
-    flex-shrink: 0;
-  }
-
-  .ctrl-btn:hover { border-color: var(--border2); color: var(--text); }
-  .ctrl-btn.active { border-color: var(--accent2); color: var(--accent); background: var(--accent-dim); }
-  .ctrl-btn svg { width: 16px; height: 16px; }
-
-  .loop-info {
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    color: var(--text3);
-    margin-left: auto;
-  }
-
-  .loop-info.looping { color: var(--accent); }
-
-  .volume-wrap {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: 0.25rem;
-  }
-
-  .volume-icon { color: var(--text3); }
-  .volume-slider {
-    width: 72px;
-    accent-color: var(--accent);
-    cursor: pointer;
-  }
-
-  .download-row {
-    display: flex;
-    gap: 0.6rem;
-    margin-top: 0.75rem;
-  }
-
-  .badge {
-    display: inline-block;
-    font-family: var(--mono);
-    font-size: 0.65rem;
-    padding: 0.2rem 0.55rem;
-    border-radius: 4px;
-    background: var(--bg4);
-    border: 1px solid var(--border);
-    color: var(--text3);
-    letter-spacing: 0.05em;
-  }
-
-  .spinner {
-    display: inline-block;
-    width: 14px;
-    height: 14px;
-    border: 2px solid var(--border2);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-    vertical-align: middle;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .waveform-canvas {
-    width: 100%;
-    height: 64px;
-    border-radius: var(--radius);
-    background: var(--bg3);
-    display: block;
-    margin-bottom: 0.75rem;
-    cursor: pointer;
-  }
-
-  @media (max-width: 520px) {
-    .info-grid { grid-template-columns: repeat(2, 1fr); }
-    .form-row { grid-template-columns: 1fr; }
-  }
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--text-primary);background:var(--bg-secondary);}
+.wrap{max-width:620px;margin:0 auto;padding:2rem 1rem;}
+h1{font-size:22px;font-weight:500;margin-bottom:4px;}
+.sub{font-size:13px;color:var(--text-secondary);margin-bottom:20px;}
+.card{background:var(--bg-primary);border:0.5px solid var(--border-t);border-radius:var(--r-lg);padding:1rem 1.25rem;margin-bottom:12px;}
+.card-title{font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
+.drop{display:flex;flex-direction:column;align-items:center;gap:6px;border:1.5px dashed var(--border-s);border-radius:var(--r-md);padding:1.25rem 1rem;text-align:center;cursor:pointer;transition:border-color .15s;}
+.drop:hover{border-color:var(--border-p);}
+.drop-icon{width:30px;height:30px;border-radius:50%;background:var(--bg-secondary);display:flex;align-items:center;justify-content:center;}
+.drop-icon svg{width:14px;height:14px;stroke:var(--text-secondary);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.drop-label{font-size:13px;color:var(--text-secondary);}
+.drop-hint{font-size:11px;color:var(--text-tertiary);}
+.meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
+.metric{background:var(--bg-secondary);border-radius:var(--r-md);padding:8px 10px;}
+.metric-label{font-size:11px;color:var(--text-secondary);margin-bottom:2px;}
+.metric-val{font-size:13px;font-weight:500;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{font-size:12px;color:var(--text-secondary);font-weight:500;}
+.field input,.field select{font-family:monospace;font-size:13px;padding:7px 10px;border-radius:var(--r-md);border:0.5px solid var(--border-s);background:var(--bg-secondary);color:var(--text-primary);width:100%;}
+.field input:focus,.field select:focus{outline:none;border-color:var(--border-p);}
+.ver-row{display:flex;align-items:flex-end;gap:8px;margin-top:10px;}
+.ver-row .field{flex:1;}
+.loop-toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;user-select:none;padding-bottom:8px;}
+.loop-toggle input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--text-primary);}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+.btn{font-family:inherit;font-size:13px;font-weight:500;padding:7px 16px;border-radius:var(--r-md);border:0.5px solid var(--border-s);background:transparent;color:var(--text-primary);cursor:pointer;transition:background .12s;white-space:nowrap;}
+.btn:hover:not(:disabled){background:var(--bg-secondary);}
+.btn:active:not(:disabled){transform:scale(0.98);}
+.btn:disabled{opacity:.35;cursor:default;}
+.btn-primary{background:var(--text-primary);color:var(--bg-primary);border-color:transparent;}
+.btn-primary:hover:not(:disabled){opacity:.88;background:var(--text-primary);}
+.status{font-size:13px;padding:7px 11px;border-radius:var(--r-md);margin-top:10px;background:var(--bg-secondary);color:var(--text-secondary);display:flex;align-items:center;gap:6px;}
+.status.ok{background:var(--bg-success);color:var(--text-success);}
+.status.err{background:var(--bg-danger);color:var(--text-danger);}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;}
+.player-wrap{padding:10px;background:var(--bg-secondary);border-radius:var(--r-md);}
+audio{width:100%;border-radius:var(--r-md);}
+.player-info{font-size:11px;color:var(--text-tertiary);margin-top:6px;display:flex;justify-content:space-between;}
+.dl-meta{font-size:12px;color:var(--text-tertiary);margin-top:8px;}
 </style>
 </head>
 <body>
-<div class="app-wrapper">
+<div class="wrap">
+  <h1>MCA ↔ WAV Converter</h1>
+  <p class="sub">Capcom MADP · v3/v4/v5 · DSP-ADPCM · Nintendo-accurate LPC coef derivation</p>
 
-  <header class="app-header">
-    <div class="app-title">MCA <span class="arrow">↔</span> WAV Converter</div>
-    <div class="app-subtitle">Capcom MADP · v3/v4/v5 · DSP-ADPCM · MCAConverter-accurate</div>
-  </header>
-
-  <!-- INPUT FILE -->
-  <div class="section">
-    <div class="section-label">Input File</div>
-    <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept=".mca,.wav">
+  <div class="card">
+    <div class="card-title">Input file</div>
+    <label class="drop">
       <div class="drop-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </div>
-      <div class="drop-filename" id="dropLabel">Drop .mca or .wav here</div>
-      <div class="drop-hint" id="dropHint">.mca · .wav</div>
+      <span class="drop-label" id="dropText">Click to choose a .mca or .wav file</span>
+      <span class="drop-hint">.mca · .wav</span>
+      <input type="file" accept=".mca,.wav" id="fileInput" style="display:none">
+    </label>
+    <div class="meta-grid" id="metaGrid" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Loop points</div>
+    <div class="row2">
+      <div class="field">
+        <label for="loopStart">Loop start (samples)</label>
+        <input type="number" id="loopStart" value="0" min="0">
+      </div>
+      <div class="field">
+        <label for="loopEnd">Loop end (samples)</label>
+        <input type="number" id="loopEnd" value="0" min="0">
+      </div>
     </div>
-    <div class="info-grid" id="infoGrid" style="display:none;">
-      <div class="info-card"><div class="info-label">Channels</div><div class="info-value" id="infoCh">—</div></div>
-      <div class="info-card"><div class="info-label">Rate</div><div class="info-value" id="infoRate">—</div></div>
-      <div class="info-card"><div class="info-label">Bit depth</div><div class="info-value" id="infoBit">—</div></div>
-      <div class="info-card"><div class="info-label">Samples</div><div class="info-value" id="infoSamples">—</div></div>
+    <div class="ver-row">
+      <div class="field">
+        <label for="version">Output MCA version</label>
+        <select id="version">
+          <option value="3">v3 — RE Mercs 3D, SSF4 3D</option>
+          <option value="4" selected>v4 — EX Troopers, AA5 (default)</option>
+          <option value="5">v5 — AA6, MH4U</option>
+        </select>
+      </div>
     </div>
   </div>
 
-  <!-- LOOP POINTS -->
-  <div class="section">
-    <div class="section-label">Loop Points</div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Loop start (samples)</label>
-        <input class="form-input" type="number" id="loopStart" value="0" min="0">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Loop end (samples)</label>
-        <input class="form-input" type="number" id="loopEnd" value="0" min="0">
-      </div>
+  <div class="card">
+    <div class="card-title">Convert</div>
+    <div class="btn-row">
+      <button class="btn" id="btnDecode" disabled>MCA → WAV</button>
+      <button class="btn" id="btnEncode" disabled>WAV → MCA</button>
     </div>
-    <div class="form-group">
-      <label class="form-label">Output MCA version</label>
-      <select class="form-select" id="mcaVersion">
-        <option value="3">v3 — RE Mercs 3D, SSF4 3D</option>
-        <option value="4" selected>v4 — EX Troopers, AA5 (default)</option>
-        <option value="5">v5 — AA6, MH4U</option>
-      </select>
+    <div class="status" id="status" style="display:none">
+      <span class="dot"></span><span id="statusText"></span>
     </div>
   </div>
 
-  <!-- CONVERT -->
-  <div class="section">
-    <div class="section-label">Convert</div>
-    <div class="btn-group">
-      <button class="btn" id="btnMcaToWav" disabled>MCA → WAV</button>
-      <button class="btn btn-primary" id="btnWavToMca" disabled>WAV → MCA</button>
+  <div class="card" id="playerCard" style="display:none">
+    <div class="card-title">
+      <span>Preview</span>
+      <label class="loop-toggle">
+        <input type="checkbox" id="loopToggle" checked>
+        Loop playback
+      </label>
     </div>
-    <div id="statusBar" style="display:none;"></div>
+    <div class="player-wrap">
+      <audio id="player" controls></audio>
+      <div class="player-info">
+        <span id="playerFile"></span>
+        <span id="playerLoopInfo"></span>
+      </div>
+    </div>
   </div>
 
-  <!-- AUDIO PLAYER -->
-  <div class="player-section" id="playerSection">
-    <div class="section-label">Playback</div>
-    <div class="player-track-name" id="playerTrackName">—</div>
-    <div class="player-meta" id="playerMeta">—</div>
-    <canvas class="waveform-canvas" id="waveformCanvas"></canvas>
-    <div class="progress-wrap">
-      <span class="progress-time" id="timeCurrent">0:00</span>
-      <div class="progress-bar-wrap" id="progressBar">
-        <div class="loop-region" id="loopRegion" style="display:none;"></div>
-        <div class="progress-fill" id="progressFill" style="width:0%"></div>
-        <div class="progress-thumb" id="progressThumb" style="left:0%"></div>
-      </div>
-      <span class="progress-time" id="timeTotal">0:00</span>
+  <div class="card" id="dlCard" style="display:none">
+    <div class="card-title">Output</div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btnDl"><span id="dlLabel">Download file</span></button>
     </div>
-    <div class="player-controls">
-      <button class="ctrl-btn" id="btnPlay" title="Play/Pause">
-        <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-      </button>
-      <button class="ctrl-btn" id="btnStop" title="Stop">
-        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
-      </button>
-      <button class="ctrl-btn" id="btnLoop" title="Toggle loop">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-      </button>
-      <div class="volume-wrap">
-        <svg class="volume-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-        <input class="volume-slider" type="range" id="volume" min="0" max="1" step="0.01" value="1">
-      </div>
-      <span class="loop-info" id="loopInfoLabel">no loop</span>
-    </div>
-    <div class="download-row" id="downloadRow" style="display:none;"></div>
+    <div class="dl-meta" id="dlMeta"></div>
   </div>
-
 </div>
 
 <script>
-// ─── DSP-ADPCM CODEC ───────────────────────────────────────────────────────
-const DSP_NIBBLES = new Int8Array([0,1,2,3,4,5,6,7,-8,-7,-6,-5,-4,-3,-2,-1]);
+// ─── State ────────────────────────────────────────────────────────────────────
+let fileData=null,fileExt="",fileName="",outBlob=null,outName="",parsedSampleRate=44100;
+const player=document.getElementById("player");
+document.getElementById("fileInput").addEventListener("change",e=>{const f=e.target.files[0];if(f)handleFile(f);});
+document.getElementById("btnDecode").addEventListener("click",decode);
+document.getElementById("btnEncode").addEventListener("click",encode);
+document.getElementById("btnDl").addEventListener("click",dlFile);
+player.addEventListener("timeupdate",handleTimeUpdate);
+document.getElementById("loopStart").addEventListener("input",updateLoopInfo);
+document.getElementById("loopEnd").addEventListener("input",updateLoopInfo);
 
-function clamp16(v) {
-  if (v > 32767) return 32767;
-  if (v < -32768) return -32768;
-  return v;
+function setStatus(msg,cls){document.getElementById("statusText").textContent=msg;const el=document.getElementById("status");el.className="status "+(cls||"");el.style.display="flex";}
+function setMeta(pairs){const g=document.getElementById("metaGrid");g.innerHTML=pairs.map(([l,v])=>`<div class="metric"><div class="metric-label">${l}</div><div class="metric-val">${v}</div></div>`).join("");g.style.display="grid";}
+function hex(n){return"0x"+(n>>>0).toString(16).toUpperCase();}
+function tick(){return new Promise(r=>setTimeout(r,20));}
+function baseName(n){return n.replace(/\.[^.]+$/,"");}
+function getLS(){return parseInt(document.getElementById("loopStart").value)||0;}
+function getLE(){return parseInt(document.getElementById("loopEnd").value)||0;}
+function getVer(){return parseInt(document.getElementById("version").value)||4;}
+function isLoopEnabled(){return document.getElementById("loopToggle").checked;}
+function updateLoopInfo(){const ls=getLS(),le=getLE(),sr=parsedSampleRate||44100;document.getElementById("playerLoopInfo").textContent=le>ls?`Loop: ${ls.toLocaleString()} → ${le.toLocaleString()} (${((le-ls)/sr).toFixed(2)}s)`:"No loop";}
+
+async function handleFile(f){
+  fileName=f.name;fileExt=f.name.split(".").pop().toLowerCase();
+  fileData=new Uint8Array(await f.arrayBuffer());
+  document.getElementById("dropText").textContent=f.name;
+  document.getElementById("playerCard").style.display="none";
+  document.getElementById("dlCard").style.display="none";
+  document.getElementById("status").style.display="none";
+  document.getElementById("btnDecode").disabled=fileExt!=="mca";
+  document.getElementById("btnEncode").disabled=fileExt!=="wav";
+  if(fileExt==="mca"){
+    try{const m=parseMCAHeader(fileData);parsedSampleRate=m.sampleRate;
+      document.getElementById("loopStart").value=m.loopStart;document.getElementById("loopEnd").value=m.loopEnd;
+      setMeta([["Version","v"+m.version],["Channels",m.channels],["Rate",m.sampleRate+" Hz"],["Samples",m.numSamples.toLocaleString()],["Loop start",m.loopStart.toLocaleString()],["Loop end",m.loopEnd.toLocaleString()],["Audio at",hex(m.startOffset)],["Head",hex(m.headSize)]]);
+      updateLoopInfo();setStatus("MCA v"+m.version+" parsed — "+m.channels+"ch "+m.sampleRate+" Hz","ok");
+    }catch(e){setStatus("MCA parse error: "+e.message,"err");}
+  } else if(fileExt==="wav"){
+    try{const w=parseWAVHeader(fileData);parsedSampleRate=w.sampleRate;
+      setMeta([["Channels",w.channels],["Rate",w.sampleRate+" Hz"],["Bit depth",w.bitsPerSample+"b"],["Samples",w.numSamples.toLocaleString()]]);
+      updateLoopInfo();setStatus("WAV loaded — "+w.channels+"ch "+w.sampleRate+" Hz","ok");
+    }catch(e){setStatus("WAV parse error: "+e.message,"err");}
+  }
 }
 
-// Standard DSP-ADPCM decode: one channel
-// adpcmData: Uint8Array, numSamples: int
-// returns Int16Array of PCM samples
-function dspDecode(adpcmData, numSamples, coefs) {
-  const out = new Int16Array(numSamples);
-  let hist1 = 0, hist2 = 0;
-  let outIdx = 0;
-  let srcIdx = 0;
-  while (outIdx < numSamples) {
-    const hdr = adpcmData[srcIdx++];
-    const scale = 1 << (hdr & 0xF);
-    const coefIdx = (hdr >> 4) & 0x7;
-    const c1 = coefs[coefIdx * 2];
-    const c2 = coefs[coefIdx * 2 + 1];
-    for (let b = 0; b < 7 && outIdx < numSamples; b++) {
-      const byte = adpcmData[srcIdx++];
-      for (let s = 0; s < 2 && outIdx < numSamples; s++) {
-        const nib = (s === 0) ? DSP_NIBBLES[(byte >> 4) & 0xF] : DSP_NIBBLES[byte & 0xF];
-        let samp = (((nib * scale) << 11) + 1024 + (c1 * hist1 + c2 * hist2)) >> 11;
-        samp = clamp16(samp);
-        out[outIdx++] = samp;
-        hist2 = hist1;
-        hist1 = samp;
+async function decode(){setStatus("Decoding…","");await tick();
+  try{const wav=mcaToWav(fileData);const blob=new Blob([wav],{type:"audio/wav"});const name=baseName(fileName)+".wav";
+    outBlob=blob;outName=name;player.src=URL.createObjectURL(blob);
+    document.getElementById("playerCard").style.display="";document.getElementById("playerFile").textContent=name;
+    updateLoopInfo();showDl(name,wav.length);setStatus("Decoded → "+name,"ok");
+  }catch(e){setStatus("Decode error: "+e.message,"err");}
+}
+
+async function encode(){setStatus("Encoding… (LPC analysis, may take a moment)","");await tick();
+  try{const mca=wavToMca(fileData,getLS(),getLE(),getVer());const blob=new Blob([mca],{type:"application/octet-stream"});const name=baseName(fileName)+".mca";
+    outBlob=blob;outName=name;document.getElementById("playerCard").style.display="none";
+    showDl(name,mca.length);setStatus("Encoded → "+name,"ok");
+  }catch(e){setStatus("Encode error: "+e.message,"err");}
+}
+
+function showDl(name,bytes){document.getElementById("dlLabel").textContent="Download "+name;document.getElementById("dlMeta").textContent=name+" · "+(bytes/1024).toFixed(1)+" KB";document.getElementById("dlCard").style.display="";}
+function dlFile(){if(!outBlob)return;const a=document.createElement("a");a.href=URL.createObjectURL(outBlob);a.download=outName;a.click();}
+function handleTimeUpdate(){if(!isLoopEnabled())return;const ls=getLS(),le=getLE(),sr=parsedSampleRate||44100;if(le>ls&&player.currentTime*sr>=le)player.currentTime=ls/sr;}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MCA HEADER PARSER — v3/v4/v5 (vgmstream-accurate)
+// ══════════════════════════════════════════════════════════════════════════════
+function parseMCAHeader(buf){
+  const v=new DataView(buf.buffer,buf.byteOffset),len=buf.length;
+  if(String.fromCharCode(buf[0],buf[1],buf[2],buf[3])!=="MADP")throw new Error("Not a MADP/MCA file");
+  const version=v.getUint16(0x04,true),channels=v.getUint8(0x08),interleave=v.getUint16(0x0A,true)||0x100;
+  const numSamples=v.getUint32(0x0C,true),sampleRate=v.getUint16(0x10,true);
+  const loopStart=v.getUint32(0x14,true),loopEnd=v.getUint32(0x18,true),dataSize=v.getUint32(0x20,true);
+  if(channels<1||channels>8)throw new Error("Bad channel count: "+channels);
+  if(sampleRate<100||sampleRate>192000)throw new Error("Bad sample rate: "+sampleRate);
+  if(dataSize===0||dataSize>len)throw new Error("Bad data_size: "+hex(dataSize)+" (file: "+hex(len)+")");
+  const CS=0x30;let headSize,coefShift,startOffset;
+  if(version<=3){headSize=len-dataSize;coefShift=0;startOffset=headSize;}
+  else{headSize=v.getUint16(0x1C,true);coefShift=v.getUint16(0x28,true);startOffset=len-dataSize;}
+  const coefOffset=(headSize-CS*channels)+coefShift*0x14;
+  if(startOffset<0||startOffset>=len)throw new Error("Audio start out of range: "+hex(startOffset)+" (file: "+hex(len)+")");
+  if(coefOffset<0||coefOffset+CS*channels>startOffset)throw new Error("Coef block out of range: "+hex(coefOffset));
+  return{version,channels,interleave,numSamples,sampleRate,loopStart,loopEnd,headSize,coefOffset,startOffset,dataSize};
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MCA → WAV
+// ══════════════════════════════════════════════════════════════════════════════
+function mcaToWav(buf){
+  const m=parseMCAHeader(buf);
+  const dv=new DataView(buf.buffer,buf.byteOffset);
+  const coefs=[];
+  for(let ch=0;ch<m.channels;ch++){const c=new Int16Array(16);for(let i=0;i<16;i++)c[i]=dv.getInt16(m.coefOffset+ch*0x30+i*2,true);coefs.push(c);}
+  const pcm=decodeDSP(buf.slice(m.startOffset),m.channels,m.numSamples,coefs,m.interleave);
+  return buildWAV(pcm,m.channels,m.sampleRate);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DSP-ADPCM DECODER
+// ══════════════════════════════════════════════════════════════════════════════
+function decodeDSP(src,channels,totalSamples,coefs,interleave){
+  const SPB=14,BPB=8,fpB=Math.floor(interleave/BPB);
+  const out=new Int16Array(totalSamples*channels);
+  const h1=new Int32Array(channels),h2=new Int32Array(channels),done=new Int32Array(channels);
+  let block=0;
+  while(true){
+    let any=false;for(let ch=0;ch<channels;ch++)if(done[ch]<totalSamples){any=true;break;}
+    if(!any)break;
+    for(let ch=0;ch<channels;ch++){
+      if(done[ch]>=totalSamples)continue;
+      const bBase=(block*channels+ch)*interleave;if(bBase>=src.length)break;
+      for(let f=0;f<fpB&&done[ch]<totalSamples;f++){
+        const fOff=bBase+f*BPB;if(fOff>=src.length)break;
+        const hdr=src[fOff],scale=1<<(hdr&0xF),ci=(hdr>>4)&0x7;
+        const c1=coefs[ch][ci*2],c2=coefs[ch][ci*2+1];
+        for(let s=0;s<SPB&&done[ch]<totalSamples;s++){
+          const bi=fOff+1+(s>>1);if(bi>=src.length)break;
+          const raw=(s&1)?(src[bi]&0xF):((src[bi]>>4)&0xF);
+          const nib=raw>=8?raw-16:raw;
+          let smp=(((nib*scale)<<11)+1024+c1*h1[ch]+c2*h2[ch])>>11;
+          smp=Math.max(-32768,Math.min(32767,smp));
+          h2[ch]=h1[ch];h1[ch]=smp;out[done[ch]*channels+ch]=smp;done[ch]++;
+        }
       }
     }
+    block++;if(block*channels*interleave>=src.length)break;
   }
   return out;
 }
 
-// DSP-ADPCM encode: one channel PCM Int16Array → Uint8Array
-// Computes coefficients via LPC analysis, returns {adpcm, coefs, numBytes}
-function dspEncode(pcm) {
-  // Compute 8 coefficient pairs via autocorrelation
-  const coefs = computeDspCoefs(pcm);
-  const numSamples = pcm.length;
-  const numFrames = Math.ceil(numSamples / 14);
-  const adpcm = new Uint8Array(numFrames * 8);
-  let hist1 = 0, hist2 = 0;
-  let srcIdx = 0;
-  let dstIdx = 0;
-
-  for (let f = 0; f < numFrames; f++) {
-    // Choose best coef set for this frame
-    let bestCoefIdx = 0;
-    let bestErr = Infinity;
-    const frameEnd = Math.min(srcIdx + 14, numSamples);
-    for (let ci = 0; ci < 8; ci++) {
-      let err = 0;
-      let h1 = hist1, h2 = hist2;
-      const c1 = coefs[ci*2], c2 = coefs[ci*2+1];
-      for (let i = srcIdx; i < frameEnd; i++) {
-        const s = pcm[i];
-        const pred = ((c1*h1 + c2*h2) + 1024) >> 11;
-        err += (s - pred) * (s - pred);
-        h2 = h1; h1 = s;
-      }
-      if (err < bestErr) { bestErr = err; bestCoefIdx = ci; }
-    }
-
-    // Encode frame with best coefs
-    const c1 = coefs[bestCoefIdx*2], c2 = coefs[bestCoefIdx*2+1];
-    // Determine scale
-    let maxErr = 0;
-    {
-      let h1 = hist1, h2 = hist2;
-      for (let i = srcIdx; i < frameEnd; i++) {
-        const pred = ((c1*h1 + c2*h2) + 1024) >> 11;
-        const e = Math.abs(pcm[i] - pred);
-        if (e > maxErr) maxErr = e;
-        h2 = h1; h1 = pcm[i];
-      }
-    }
-    let scaleExp = 0;
-    if (maxErr > 0) {
-      scaleExp = Math.ceil(Math.log2(maxErr / 7.5));
-      if (scaleExp < 0) scaleExp = 0;
-      if (scaleExp > 12) scaleExp = 12;
-    }
-    const scale = 1 << scaleExp;
-    adpcm[dstIdx++] = (bestCoefIdx << 4) | scaleExp;
-
-    // Pack 14 samples into 7 bytes
-    let h1 = hist1, h2 = hist2;
-    const nibBuf = new Int8Array(14);
-    for (let i = 0; i < 14; i++) {
-      const si = srcIdx + i;
-      const s = si < numSamples ? pcm[si] : 0;
-      const pred = ((c1*h1 + c2*h2) + 1024) >> 11;
-      let err = s - pred;
-      let nib = Math.round(err / scale);
-      nib = Math.max(-8, Math.min(7, nib));
-      nibBuf[i] = nib;
-      const dec = clamp16(pred + nib * scale);
-      h2 = h1; h1 = dec;
-    }
-    hist1 = h1; hist2 = h2;
-
-    for (let b = 0; b < 7; b++) {
-      adpcm[dstIdx++] = ((nibBuf[b*2] & 0xF) << 4) | (nibBuf[b*2+1] & 0xF);
-    }
-    srcIdx += 14;
+// ══════════════════════════════════════════════════════════════════════════════
+// WAV BUILDER / PARSER
+// ══════════════════════════════════════════════════════════════════════════════
+function buildWAV(pcm,channels,sampleRate){
+  const db=pcm.length*2,ab=new ArrayBuffer(44+db),dv=new DataView(ab);
+  const ws=(o,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i));};
+  ws(0,"RIFF");dv.setUint32(4,36+db,true);ws(8,"WAVE");ws(12,"fmt ");dv.setUint32(16,16,true);dv.setUint16(20,1,true);
+  dv.setUint16(22,channels,true);dv.setUint32(24,sampleRate,true);dv.setUint32(28,sampleRate*channels*2,true);
+  dv.setUint16(32,channels*2,true);dv.setUint16(34,16,true);ws(36,"data");dv.setUint32(40,db,true);
+  new Int16Array(ab,44).set(pcm);return new Uint8Array(ab);
+}
+function parseWAVHeader(buf){
+  const dv=new DataView(buf.buffer,buf.byteOffset);
+  if(String.fromCharCode(buf[0],buf[1],buf[2],buf[3])!=="RIFF")throw new Error("Not a RIFF WAV");
+  const channels=dv.getUint16(22,true),sampleRate=dv.getUint32(24,true),bitsPerSample=dv.getUint16(34,true);
+  if(bitsPerSample!==16)throw new Error("Only 16-bit PCM WAV supported");
+  let off=12;
+  while(off<buf.length-8){
+    const id=String.fromCharCode(buf[off],buf[off+1],buf[off+2],buf[off+3]),sz=dv.getUint32(off+4,true);
+    if(id==="data")return{channels,sampleRate,bitsPerSample,numSamples:Math.floor(sz/(channels*2)),dataOffset:off+8,dataSize:sz};
+    off+=8+sz+(sz&1);
   }
-  return { adpcm: adpcm.subarray(0, numFrames*8), coefs };
+  throw new Error("No data chunk in WAV");
 }
 
-function computeDspCoefs(pcm) {
-  const N = Math.min(pcm.length, 4096);
-  // Autocorrelation up to order 8
-  const ac = new Float64Array(9);
-  for (let lag = 0; lag <= 8; lag++) {
-    let s = 0;
-    for (let i = lag; i < N; i++) s += pcm[i] * pcm[i-lag];
-    ac[lag] = s;
+// ══════════════════════════════════════════════════════════════════════════════
+// WAV → MCA ENCODER
+// ══════════════════════════════════════════════════════════════════════════════
+function wavToMca(buf,loopStart=0,loopEnd=0,version=4){
+  const{channels,sampleRate,numSamples,dataOffset,dataSize}=parseWAVHeader(buf);
+  const pcm=new Int16Array(buf.buffer,buf.byteOffset+dataOffset,dataSize>>1);
+  const INTERLEAVE=0x100,SPB=14,fpB=Math.floor(INTERLEAVE/8),CS=0x30,FIXED_HDR=0x30;
+  const chEnc=[],coefs=[];
+  for(let ch=0;ch<channels;ch++){
+    const mono=new Int16Array(numSamples);
+    for(let s=0;s<numSamples;s++)mono[s]=pcm[s*channels+ch];
+    const c=dspCorrelateCoefs(mono);
+    coefs.push(c);chEnc.push(encodeMono(mono,c));
   }
-  // Levinson-Durbin → 8 reflection coefficients
-  const lpc = new Float64Array(8);
-  const err = new Float64Array(9);
-  err[0] = ac[0] || 1;
-  const k = new Float64Array(8);
-  const a = new Float64Array(9);
-  for (let m = 1; m <= 8; m++) {
-    let num = ac[m];
-    for (let j = 1; j < m; j++) num -= a[j] * ac[m-j];
-    k[m-1] = num / err[m-1];
-    a[m] = k[m-1];
-    for (let j = 1; j < m; j++) a[j] -= k[m-1] * a[m-j];
-    err[m] = err[m-1] * (1 - k[m-1]*k[m-1]);
-  }
-  // Build 8 coef pairs from LPC (pairs of consecutive orders)
-  const coefs = new Int16Array(16);
-  for (let i = 0; i < 8; i++) {
-    const order = i * 2;
-    const c1 = order < 8 ? -a[order+1] : 0;
-    const c2 = (order+1) < 8 ? -a[order+2] : 0;
-    coefs[i*2]   = Math.round(c1 * 2048);
-    coefs[i*2+1] = Math.round(c2 * 2048);
-  }
-  return coefs;
-}
-
-// Compute coef info for DSP header (initial state + loop point state)
-function getDspHeaderInfo(pcm, adpcm, coefs, loopStart) {
-  // Reproduce decode to get history at loop start
-  let hist1 = 0, hist2 = 0;
-  let lHist1 = 0, lHist2 = 0;
-  const numSamples = pcm.length;
-  let outIdx = 0;
-  let srcIdx = 0;
-  const numFrames = Math.ceil(numSamples / 14);
-  const loopFrame = Math.floor(loopStart / 14);
-
-  for (let f = 0; f < numFrames; f++) {
-    if (f === loopFrame) { lHist1 = hist1; lHist2 = hist2; }
-    const hdr = adpcm[srcIdx++];
-    const scale = 1 << (hdr & 0xF);
-    const coefIdx = (hdr >> 4) & 0x7;
-    const c1 = coefs[coefIdx*2], c2 = coefs[coefIdx*2+1];
-    for (let b = 0; b < 7; b++) {
-      if (srcIdx >= adpcm.length) break;
-      const byte = adpcm[srcIdx++];
-      for (let s = 0; s < 2 && outIdx < numSamples; s++) {
-        const nib = (s===0) ? DSP_NIBBLES[(byte>>4)&0xF] : DSP_NIBBLES[byte&0xF];
-        const samp = clamp16((((nib*scale)<<11)+1024+(c1*hist1+c2*hist2))>>11);
-        hist2 = hist1; hist1 = samp;
-        outIdx++;
-      }
+  const totalBlocks=Math.ceil(Math.ceil(numSamples/SPB)/fpB);
+  const audioBytes=totalBlocks*channels*INTERLEAVE;
+  const headSize=FIXED_HDR+channels*CS;
+  const out=new Uint8Array(headSize+audioBytes);
+  const dv=new DataView(out.buffer);
+  out[0]=0x4D;out[1]=0x41;out[2]=0x44;out[3]=0x50;
+  dv.setUint16(0x04,version,true);dv.setUint8(0x08,channels);dv.setUint16(0x0A,INTERLEAVE,true);
+  dv.setUint32(0x0C,numSamples,true);dv.setUint16(0x10,sampleRate,true);
+  dv.setUint32(0x14,loopStart,true);dv.setUint32(0x18,loopEnd,true);
+  if(version<=3){dv.setUint32(0x20,audioBytes,true);}
+  else{dv.setUint16(0x1C,headSize,true);dv.setUint32(0x20,audioBytes,true);dv.setUint16(0x28,0,true);}
+  for(let ch=0;ch<channels;ch++){const cOff=FIXED_HDR+ch*CS;for(let i=0;i<16;i++)dv.setInt16(cOff+i*2,coefs[ch][i],true);}
+  for(let b=0;b<totalBlocks;b++)
+    for(let ch=0;ch<channels;ch++){
+      const src=chEnc[ch].slice(b*INTERLEAVE,(b+1)*INTERLEAVE);
+      out.set(src,headSize+(b*channels+ch)*INTERLEAVE);
     }
-  }
-  return { lHist1, lHist2 };
+  return out;
 }
 
-// ─── MCA FORMAT ─────────────────────────────────────────────────────────────
-// MCA v3/v4/v5 header layout (little-endian):
-//   [0x00] u32 magic = 0x4D434100 ("MCA\0")  — actually big endian tag
-//   [0x04] u8  version (3, 4, or 5)
-//   [0x05] u8  channels
-//   [0x06] u16 sampleRate
-//   [0x08] u32 numSamples
-//   [0x0C] u32 loopStart
-//   [0x10] u32 loopEnd
-//   [0x14] u32 dataOffset (per channel header size * numChannels + 0x14 base)
-//   then for each channel, a DSP header (0x60 bytes):
-//     [+0x00] u32 numSamples
-//     [+0x04] u32 numAdpcmNibbles
-//     [+0x08] u32 sampleRate
-//     [+0x0C] u16 loopFlag
-//     [+0x0E] u16 format (0=ADPCM)
-//     [+0x10] u32 startOffset (in ADPCM frames)
-//     [+0x14] u32 endOffset
-//     [+0x18] u32 loopOffset
-//     [+0x1C] u16 gain (0)
-//     [+0x1E] u16 initialPS
-//     [+0x20] i16 initialHist1
-//     [+0x22] i16 initialHist2
-//     [+0x24] u16 loopPS
-//     [+0x26] i16 loopHist1
-//     [+0x28] i16 loopHist2
-//     [+0x2A] u16 pad
-//     [+0x2C] i16[16] coefs (8 pairs)
-//     [+0x4C] 20 bytes padding → total 0x60
+// ══════════════════════════════════════════════════════════════════════════════
+// LPC COEF DERIVATION — faithful JS port of grok.c DSPCorrelateCoefs()
+// Derives 8 optimal predictor coef pairs from the signal via autocorrelation.
+// ══════════════════════════════════════════════════════════════════════════════
+function dspCorrelateCoefs(pcm){
+  const numFrames=Math.ceil(pcm.length/14);
+  const records=[];
+  const hist=[new Float64Array(14),new Float64Array(14)];
 
-const MCA_MAGIC = 0x4D434100;
-
-function parseMCA(buffer) {
-  const dv = new DataView(buffer);
-  const magic = dv.getUint32(0, false); // big-endian
-  if (magic !== MCA_MAGIC) throw new Error('Not a valid MCA file (bad magic)');
-  const version = dv.getUint8(4);
-  if (version < 3 || version > 5) throw new Error(`Unsupported MCA version ${version}`);
-  const channels = dv.getUint8(5);
-  const sampleRate = dv.getUint16(6, true);
-  const numSamples = dv.getUint32(8, true);
-  const loopStart = dv.getUint32(12, true);
-  const loopEnd = dv.getUint32(16, true);
-  const dataOffset = dv.getUint32(20, true);
-
-  // Parse per-channel DSP headers
-  const chanHeaders = [];
-  for (let c = 0; c < channels; c++) {
-    const base = 0x18 + c * 0x60;
-    const coefs = new Int16Array(16);
-    for (let i = 0; i < 16; i++) {
-      coefs[i] = dv.getInt16(base + 0x2C + i*2, true);
-    }
-    chanHeaders.push({
-      numSamples: dv.getUint32(base + 0x00, true),
-      sampleRate: dv.getUint32(base + 0x08, true),
-      loopFlag: dv.getUint16(base + 0x0C, true),
-      initialHist1: dv.getInt16(base + 0x20, true),
-      initialHist2: dv.getInt16(base + 0x22, true),
-      coefs
-    });
-  }
-
-  // Extract interleaved ADPCM data
-  // Data is interleaved per-frame (8 bytes per channel per frame group)
-  const adpcmDataStart = dataOffset;
-  const adpcmLen = buffer.byteLength - adpcmDataStart;
-  const adpcmFull = new Uint8Array(buffer, adpcmDataStart, adpcmLen);
-
-  // De-interleave: for v3/v4/v5, data is stored with each channel's frames sequential
-  // Actually MCA stores channels interleaved at 8-byte frame level
-  const numFrames = Math.ceil(numSamples / 14);
-  const chanAdpcm = [];
-  for (let c = 0; c < channels; c++) chanAdpcm.push(new Uint8Array(numFrames * 8));
-
-  // Check if data seems channel-sequential vs interleaved
-  // Based on reversals: MCA stores channels sequentially (all ch0 frames, then all ch1 frames)
-  const bytesPerChannel = numFrames * 8;
-  for (let c = 0; c < channels; c++) {
-    const src = adpcmFull.subarray(c * bytesPerChannel, (c+1) * bytesPerChannel);
-    chanAdpcm[c].set(src.subarray(0, Math.min(bytesPerChannel, src.length)));
-  }
-
-  return { version, channels, sampleRate, numSamples, loopStart, loopEnd, chanHeaders, chanAdpcm };
-}
-
-function buildMCA(pcmChannels, sampleRate, loopStart, loopEnd, version) {
-  const channels = pcmChannels.length;
-  const numSamples = pcmChannels[0].length;
-  const numFrames = Math.ceil(numSamples / 14);
-
-  // Encode each channel
-  const encoded = pcmChannels.map(ch => dspEncode(ch));
-
-  // Data offset: 0x18 + channels * 0x60
-  const dataOffset = 0x18 + channels * 0x60;
-  const adpcmSize = numFrames * 8;
-  const totalSize = dataOffset + channels * adpcmSize;
-  const buf = new ArrayBuffer(totalSize);
-  const dv = new DataView(buf);
-  const u8 = new Uint8Array(buf);
-
-  // Main header
-  dv.setUint32(0, MCA_MAGIC, false);
-  dv.setUint8(4, version);
-  dv.setUint8(5, channels);
-  dv.setUint16(6, sampleRate, true);
-  dv.setUint32(8, numSamples, true);
-  dv.setUint32(12, loopStart, true);
-  dv.setUint32(16, loopEnd, true);
-  dv.setUint32(20, dataOffset, true);
-  dv.setUint16(24, 0, true); // padding
-
-  const hasLoop = loopEnd > loopStart && loopEnd > 0;
-
-  for (let c = 0; c < channels; c++) {
-    const base = 0x18 + c * 0x60;
-    const { coefs, adpcm } = encoded[c];
-    const loopInfo = hasLoop ? getDspHeaderInfo(pcmChannels[c], adpcm, coefs, loopStart) : { lHist1: 0, lHist2: 0 };
-    const loopFrame = Math.floor(loopStart / 14);
-    const loopAdpcmOff = loopFrame * 8;
-    const endAdpcmOff = numFrames * 8;
-
-    dv.setUint32(base + 0x00, numSamples, true);
-    dv.setUint32(base + 0x04, numFrames * 16, true); // nibbles
-    dv.setUint32(base + 0x08, sampleRate, true);
-    dv.setUint16(base + 0x0C, hasLoop ? 1 : 0, true);
-    dv.setUint16(base + 0x0E, 0, true); // ADPCM
-    dv.setUint32(base + 0x10, 2, true); // startOffset (standard)
-    dv.setUint32(base + 0x14, endAdpcmOff, true);
-    dv.setUint32(base + 0x18, loopAdpcmOff, true);
-    dv.setUint16(base + 0x1C, 0, true); // gain
-    dv.setUint16(base + 0x1E, adpcm[0], true); // initialPS
-    dv.setInt16(base + 0x20, 0, true);
-    dv.setInt16(base + 0x22, 0, true);
-    dv.setUint16(base + 0x24, hasLoop ? adpcm[loopAdpcmOff] : 0, true);
-    dv.setInt16(base + 0x26, loopInfo.lHist1, true);
-    dv.setInt16(base + 0x28, loopInfo.lHist2, true);
-    dv.setUint16(base + 0x2A, 0, true);
-    for (let i = 0; i < 16; i++) dv.setInt16(base + 0x2C + i*2, coefs[i], true);
-    // 20 bytes padding at +0x4C already zeroed
-
-    // Write ADPCM data
-    u8.set(adpcm, dataOffset + c * adpcmSize);
-  }
-  return buf;
-}
-
-// ─── WAV PARSER ─────────────────────────────────────────────────────────────
-function parseWAV(buffer) {
-  const dv = new DataView(buffer);
-  // RIFF header
-  const riff = dv.getUint32(0, false);
-  if (riff !== 0x52494646) throw new Error('Not a RIFF/WAV file');
-  const waveMark = dv.getUint32(8, false);
-  if (waveMark !== 0x57415645) throw new Error('Not a WAVE file');
-
-  let offset = 12;
-  let channels, sampleRate, bitsPerSample, numSamples;
-  let pcmChannels = null;
-
-  while (offset < buffer.byteLength - 8) {
-    const chunkId = dv.getUint32(offset, false);
-    const chunkSize = dv.getUint32(offset+4, true);
-    if (chunkId === 0x666D7420) { // 'fmt '
-      const audioFmt = dv.getUint16(offset+8, true);
-      if (audioFmt !== 1) throw new Error('Only PCM WAV supported (format must be 1)');
-      channels = dv.getUint16(offset+10, true);
-      sampleRate = dv.getUint32(offset+12, true);
-      bitsPerSample = dv.getUint16(offset+22, true);
-      if (bitsPerSample !== 16) throw new Error('Only 16-bit PCM WAV supported');
-    } else if (chunkId === 0x64617461) { // 'data'
-      const dataBytes = chunkSize;
-      const bytesPerSample = bitsPerSample / 8;
-      numSamples = Math.floor(dataBytes / (bytesPerSample * channels));
-      pcmChannels = [];
-      for (let c = 0; c < channels; c++) pcmChannels.push(new Int16Array(numSamples));
-      for (let i = 0; i < numSamples; i++) {
-        for (let c = 0; c < channels; c++) {
-          pcmChannels[c][i] = dv.getInt16(offset + 8 + (i * channels + c) * 2, true);
+  for(let fi=0;fi<numFrames;fi++){
+    for(let z=0;z<14;z++)hist[0][z]=hist[1][z];
+    for(let z=0;z<14;z++)hist[1][z]=(fi*14+z<pcm.length)?pcm[fi*14+z]:0;
+    const vec1=innerProductMerge(hist[1]);
+    if(Math.abs(vec1[0])>10.0){
+      const mtx=outerProductMerge(hist[1]);
+      const vidxs=[0,0,0];
+      if(!analyzeRanges(mtx,vidxs)){
+        bidirectionalFilter(mtx,vidxs,vec1);
+        if(!quadraticMerge(vec1)){
+          const rec=new Float64Array(3);finishRecord(vec1,rec);records.push(rec);
         }
       }
     }
-    offset += 8 + chunkSize;
-    if (chunkSize & 1) offset++;
   }
-  if (!pcmChannels) throw new Error('No audio data found in WAV');
-  return { channels, sampleRate, bitsPerSample, numSamples, pcmChannels };
+
+  const vecBest=Array.from({length:8},()=>new Float64Array(3));
+  const vec1=new Float64Array([1.0,0.0,0.0]);
+  if(records.length===0)return new Int16Array(16);
+
+  for(const r of records){const tmp=new Float64Array(3);matrixFilter(r,tmp);for(let y=1;y<=2;y++)vec1[y]+=tmp[y];}
+  for(let y=1;y<=2;y++)vec1[y]/=records.length;
+  mergeFinishRecord(vec1,vecBest[0]);
+
+  let exp=1;
+  for(let w=0;w<3;w++){
+    const vec2=new Float64Array([0.0,-1.0,0.0]);
+    for(let i=0;i<exp;i++)for(let y=0;y<=2;y++)vecBest[exp+i][y]=0.01*vec2[y]+vecBest[i][y];
+    exp=1<<(++w);
+    filterRecords(vecBest,exp,records);
+  }
+  filterRecords(vecBest,8,records);
+
+  const out=new Int16Array(16);
+  for(let z=0;z<8;z++){
+    let d=-vecBest[z][1]*2048.0;out[z*2]=d>32767?32767:d<-32768?-32768:Math.round(d)|0;
+    d=-vecBest[z][2]*2048.0;out[z*2+1]=d>32767?32767:d<-32768?-32768:Math.round(d)|0;
+  }
+  return out;
 }
 
-function buildWAV(pcmChannels, sampleRate) {
-  const channels = pcmChannels.length;
-  const numSamples = pcmChannels[0].length;
-  const dataSize = numSamples * channels * 2;
-  const buf = new ArrayBuffer(44 + dataSize);
-  const dv = new DataView(buf);
-  dv.setUint32(0, 0x52494646, false);
-  dv.setUint32(4, 36 + dataSize, true);
-  dv.setUint32(8, 0x57415645, false);
-  dv.setUint32(12, 0x666D7420, false);
-  dv.setUint32(16, 16, true);
-  dv.setUint16(20, 1, true);
-  dv.setUint16(22, channels, true);
-  dv.setUint32(24, sampleRate, true);
-  dv.setUint32(28, sampleRate * channels * 2, true);
-  dv.setUint16(32, channels * 2, true);
-  dv.setUint16(34, 16, true);
-  dv.setUint32(36, 0x64617461, false);
-  dv.setUint32(40, dataSize, true);
-  for (let i = 0; i < numSamples; i++) {
-    for (let c = 0; c < channels; c++) {
-      dv.setInt16(44 + (i * channels + c) * 2, pcmChannels[c][i], true);
+function innerProductMerge(b){
+  const v=new Float64Array(3);
+  for(let i=0;i<=2;i++){v[i]=0;for(let x=0;x<14;x++)v[i]-=(b[x]||0)*(x>=i?b[x-i]:0);}
+  return v;
+}
+function outerProductMerge(b){
+  const mtx=[[],[new Float64Array(3)],[new Float64Array(3)]];
+  for(let x=1;x<=2;x++)for(let y=1;y<=2;y++){mtx[x][y]=0;for(let z=0;z<14;z++)mtx[x][y]+=(z>=x?b[z-x]:0)*(z>=y?b[z-y]:0);}
+  return mtx;
+}
+function analyzeRanges(mtx,vi){
+  const rec=[0,0,0];
+  for(let x=1;x<=2;x++){const val=Math.max(Math.abs(mtx[x][1]),Math.abs(mtx[x][2]));if(val<Number.EPSILON)return true;rec[x]=1/val;}
+  let mi=0;
+  for(let i=1;i<=2;i++){
+    for(let x=1;x<i;x++){let t=mtx[x][i];for(let y=1;y<x;y++)t-=mtx[x][y]*mtx[y][i];mtx[x][i]=t;}
+    let val=0;
+    for(let x=i;x<=2;x++){let t=mtx[x][i];for(let y=1;y<i;y++)t-=mtx[x][y]*mtx[y][i];mtx[x][i]=t;const q=Math.abs(t)*rec[x];if(q>=val){val=q;mi=x;}}
+    if(mi!==i){for(let y=1;y<=2;y++){const t=mtx[mi][y];mtx[mi][y]=mtx[i][y];mtx[i][y]=t;}rec[mi]=rec[i];}
+    vi[i]=mi;if(mtx[i][i]===0)return true;
+    if(i!==2){const t=1/mtx[i][i];for(let x=i+1;x<=2;x++)mtx[x][i]*=t;}
+  }
+  const mn=Math.min(Math.abs(mtx[1][1]),Math.abs(mtx[2][2])),mx=Math.max(Math.abs(mtx[1][1]),Math.abs(mtx[2][2]));
+  return mn/mx<1e-10;
+}
+function bidirectionalFilter(mtx,vi,vo){
+  let x=0;
+  for(let i=1;i<=2;i++){const idx=vi[i];let t=vo[idx];vo[idx]=vo[i];if(x!==0)for(let y=x;y<=i-1;y++)t-=vo[y]*mtx[i][y];else if(t!==0)x=i;vo[i]=t;}
+  for(let i=2;i>0;i--){let t=vo[i];for(let y=i+1;y<=2;y++)t-=vo[y]*mtx[i][y];vo[i]=t/mtx[i][i];}
+  vo[0]=1.0;
+}
+function quadraticMerge(v){
+  const v2=v[2],tmp=1-(v2*v2);if(tmp===0)return true;
+  v[0]=(v[0]-(v2*v2))/tmp;v[1]=(v[1]-(v[1]*v2))/tmp;return Math.abs(v[1])>1.0;
+}
+function finishRecord(inp,out){
+  const v=new Float64Array(inp);
+  for(let z=1;z<=2;z++){if(v[z]>=1)v[z]=0.9999999999;else if(v[z]<=-1)v[z]=-0.9999999999;}
+  out[0]=1.0;out[1]=(v[2]*v[1])+v[1];out[2]=v[2];
+}
+function matrixFilter(src,dst){
+  const mtx=[[],[new Float64Array(3)],[new Float64Array(3)]];
+  mtx[2][0]=1.0;for(let i=1;i<=2;i++)mtx[2][i]=-src[i];
+  for(let i=2;i>0;i--){const val=1-(mtx[i][i]*mtx[i][i]);for(let y=1;y<=i;y++)mtx[i-1][y]=((mtx[i][i]*mtx[i][y])+mtx[i][y])/val;}
+  dst[0]=1.0;for(let i=1;i<=2;i++){dst[i]=0;for(let y=1;y<=i;y++)dst[i]+=mtx[i][y]*dst[i-y];}
+}
+function mergeFinishRecord(src,dst){
+  let val=src[0];dst[0]=1.0;const tmp=new Float64Array(3);
+  for(let i=1;i<=2;i++){
+    let v2=0;for(let y=1;y<i;y++)v2+=dst[y]*src[i-y];
+    dst[i]=val>0?-(v2+src[i])/val:0;tmp[i]=dst[i];
+    for(let y=1;y<i;y++)dst[y]+=dst[i]*dst[i-y];val*=1-(dst[i]*dst[i]);
+  }
+  finishRecord(tmp,dst);
+}
+function contrastVectors(s1,s2){
+  const val=(s2[2]*s2[1]+-s2[1])/(1-(s2[2]*s2[2]));
+  const v1=s1[0]*s1[0]+s1[1]*s1[1]+s1[2]*s1[2];
+  const v2=s1[0]*s1[1]+s1[1]*s1[2],v3=s1[0]*s1[2];
+  return v1+(2*val*v2)+(2*(-s2[1]*val+-s2[2])*v3);
+}
+function filterRecords(vecBest,exp,records){
+  for(let x=0;x<2;x++){
+    const cnt=new Int32Array(exp),bufList=Array.from({length:exp},()=>new Float64Array(3));
+    for(const rec of records){
+      let idx=0,best=1e30;
+      for(let i=0;i<exp;i++){const v=contrastVectors(vecBest[i],rec);if(v<best){best=v;idx=i;}}
+      cnt[idx]++;const tmp=new Float64Array(3);matrixFilter(rec,tmp);for(let i=0;i<=2;i++)bufList[idx][i]+=tmp[i];
     }
-  }
-  return buf;
-}
-
-// ─── PCM → AudioBuffer ──────────────────────────────────────────────────────
-let audioCtx = null;
-function getAudioCtx() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  return audioCtx;
-}
-
-function pcmToAudioBuffer(pcmChannels, sampleRate) {
-  const ctx = getAudioCtx();
-  const numSamples = pcmChannels[0].length;
-  const ab = ctx.createBuffer(pcmChannels.length, numSamples, sampleRate);
-  for (let c = 0; c < pcmChannels.length; c++) {
-    const ch = ab.getChannelData(c);
-    const src = pcmChannels[c];
-    for (let i = 0; i < numSamples; i++) ch[i] = src[i] / 32768;
-  }
-  return ab;
-}
-
-// ─── PLAYER ────────────────────────────────────────────────────────────────
-let player = {
-  audioBuffer: null,
-  sourceNode: null,
-  gainNode: null,
-  startTime: 0,
-  pauseOffset: 0,
-  isPlaying: false,
-  loopEnabled: false,
-  loopStart: 0,
-  loopEnd: 0,
-  sampleRate: 44100,
-  rafId: null,
-  pcmChannels: null,
-  filename: '',
-  fileType: '',
-};
-
-function fmtTime(secs) {
-  const m = Math.floor(secs / 60);
-  const s = Math.floor(secs % 60);
-  return `${m}:${s.toString().padStart(2,'0')}`;
-}
-
-function playerStop() {
-  if (player.sourceNode) {
-    try { player.sourceNode.stop(); } catch(e) {}
-    player.sourceNode.disconnect();
-    player.sourceNode = null;
-  }
-  if (player.rafId) { cancelAnimationFrame(player.rafId); player.rafId = null; }
-  player.isPlaying = false;
-  player.pauseOffset = 0;
-  updatePlayIcon();
-  updateProgress(0);
-}
-
-function playerPause() {
-  if (!player.isPlaying) return;
-  const ctx = getAudioCtx();
-  player.pauseOffset = (ctx.currentTime - player.startTime) % player.audioBuffer.duration;
-  if (player.sourceNode) { try { player.sourceNode.stop(); } catch(e) {} player.sourceNode = null; }
-  if (player.rafId) { cancelAnimationFrame(player.rafId); player.rafId = null; }
-  player.isPlaying = false;
-  updatePlayIcon();
-}
-
-function playerPlay(fromOffset) {
-  if (!player.audioBuffer) return;
-  const ctx = getAudioCtx();
-  if (ctx.state === 'suspended') ctx.resume();
-  if (player.sourceNode) { try { player.sourceNode.stop(); } catch(e) {} player.sourceNode = null; }
-
-  const src = ctx.createBufferSource();
-  src.buffer = player.audioBuffer;
-
-  if (!player.gainNode) {
-    player.gainNode = ctx.createGain();
-    player.gainNode.connect(ctx.destination);
-  }
-  src.connect(player.gainNode);
-
-  const dur = player.audioBuffer.duration;
-  const loopS = player.loopStart / player.sampleRate;
-  const loopE = player.loopEnd > 0 && player.loopEnd > player.loopStart
-    ? player.loopEnd / player.sampleRate : dur;
-
-  const hasLoop = player.loopEnabled && loopE > loopS;
-  if (hasLoop) {
-    src.loop = true;
-    src.loopStart = loopS;
-    src.loopEnd = loopE;
-  }
-
-  const offset = fromOffset !== undefined ? fromOffset : player.pauseOffset;
-  player.startTime = ctx.currentTime - offset;
-  src.start(0, offset);
-  player.sourceNode = src;
-  player.isPlaying = true;
-  updatePlayIcon();
-  startRAF();
-
-  src.onended = () => {
-    if (!hasLoop) { playerStop(); }
-  };
-}
-
-function startRAF() {
-  if (player.rafId) cancelAnimationFrame(player.rafId);
-  function tick() {
-    if (!player.isPlaying) return;
-    const ctx = getAudioCtx();
-    const cur = (ctx.currentTime - player.startTime);
-    const dur = player.audioBuffer.duration;
-    const loopE = player.loopEnd > 0 ? player.loopEnd / player.sampleRate : dur;
-    const displayT = player.loopEnabled && player.loopEnd > 0
-      ? cur % loopE : Math.min(cur, dur);
-    updateProgress(Math.min(displayT, dur));
-    player.rafId = requestAnimationFrame(tick);
-  }
-  tick();
-}
-
-function updateProgress(t) {
-  const dur = player.audioBuffer ? player.audioBuffer.duration : 1;
-  const pct = Math.min(t / dur, 1) * 100;
-  document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('progressThumb').style.left = pct + '%';
-  document.getElementById('timeCurrent').textContent = fmtTime(t);
-  document.getElementById('timeTotal').textContent = fmtTime(dur);
-}
-
-function updatePlayIcon() {
-  const icon = document.getElementById('playIcon');
-  if (player.isPlaying) {
-    icon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
-  } else {
-    icon.innerHTML = '<polygon points="5,3 19,12 5,21"/>';
+    for(let i=0;i<exp;i++){if(cnt[i]>0)for(let y=0;y<=2;y++)bufList[i][y]/=cnt[i];mergeFinishRecord(bufList[i],vecBest[i]);}
   }
 }
 
-function updateLoopUI() {
-  const dur = player.audioBuffer ? player.audioBuffer.duration : 1;
-  const sampleRate = player.sampleRate;
-  const loopS = player.loopStart / sampleRate / dur;
-  const loopE = player.loopEnd > 0 ? player.loopEnd / sampleRate / dur : 1;
-  const hasLoop = player.loopEnd > player.loopStart && player.loopEnd > 0;
+// ══════════════════════════════════════════════════════════════════════════════
+// DSP FRAME ENCODER — faithful JS port of grok.c DSPEncodeFrame()
+// pcmInOut: Int32Array[16] = [hist2, hist1, sample0..13]
+//   → updated in-place with decoded reconstructed values
+// returns: Uint8Array[8] ADPCM frame bytes
+// ══════════════════════════════════════════════════════════════════════════════
+function dspEncodeFrame(pcmInOut,sampleCount,coefsFlat){
+  const inS=Array.from({length:8},()=>new Int32Array(16));
+  const outS=Array.from({length:8},()=>new Int32Array(14));
+  const scale=new Int32Array(8),dist=new Float64Array(8);
+  let best=0;
 
-  const region = document.getElementById('loopRegion');
-  const label = document.getElementById('loopInfoLabel');
-  const btn = document.getElementById('btnLoop');
-
-  if (hasLoop) {
-    region.style.display = 'block';
-    region.style.left = (loopS * 100) + '%';
-    region.style.width = ((loopE - loopS) * 100) + '%';
-    label.textContent = `loop: ${player.loopStart.toLocaleString()} – ${player.loopEnd.toLocaleString()}`;
-    label.className = 'loop-info looping';
-  } else {
-    region.style.display = 'none';
-    label.textContent = 'no loop';
-    label.className = 'loop-info';
-  }
-
-  btn.classList.toggle('active', player.loopEnabled && hasLoop);
-}
-
-function drawWaveform(pcmChannels) {
-  const canvas = document.getElementById('waveformCanvas');
-  const ctx = canvas.getContext('2d');
-  const W = canvas.offsetWidth * window.devicePixelRatio || 600;
-  const H = 64 * window.devicePixelRatio || 64;
-  canvas.width = W;
-  canvas.height = H;
-  ctx.clearRect(0,0,W,H);
-
-  const mixed = pcmChannels[0];
-  const step = Math.max(1, Math.floor(mixed.length / W));
-  const mid = H / 2;
-
-  ctx.strokeStyle = '#4ade80';
-  ctx.lineWidth = 1;
-  ctx.globalAlpha = 0.85;
-  ctx.beginPath();
-  for (let x = 0; x < W; x++) {
-    const idx = Math.floor(x * mixed.length / W);
-    let max = -32768, min = 32767;
-    for (let s = 0; s < step; s++) {
-      const v = mixed[idx+s] || 0;
-      if (v > max) max = v;
-      if (v < min) min = v;
+  for(let i=0;i<8;i++){
+    const c0=coefsFlat[i*2],c1=coefsFlat[i*2+1];
+    inS[i][0]=pcmInOut[0];inS[i][1]=pcmInOut[1];
+    let distance=0;
+    for(let s=0;s<sampleCount;s++){
+      const v1=((pcmInOut[s+1]*c0)+(pcmInOut[s]*c1))/2048|0;
+      inS[i][s+2]=v1;
+      const v2=pcmInOut[s+2]-v1,v3=v2>=32767?32767:v2<=-32768?-32768:v2;
+      if(Math.abs(v3)>Math.abs(distance))distance=v3;
     }
-    const y1 = mid - (max / 32768) * mid;
-    const y2 = mid - (min / 32768) * mid;
-    ctx.moveTo(x, y1);
-    ctx.lineTo(x, y2);
+    scale[i]=0;while(scale[i]<=12&&(distance>7||distance<-8)){scale[i]++;distance=distance/2|0;}
+    scale[i]=scale[i]<=1?-1:scale[i]-2;
+    let index=0;
+    do{
+      scale[i]++;dist[i]=0;index=0;
+      for(let s=0;s<sampleCount;s++){
+        const v1=(inS[i][s]*c1)+(inS[i][s+1]*c0);
+        const v2=((pcmInOut[s+2]<<11)-v1)/2048|0;
+        const sc=1<<scale[i];
+        // Round away from zero (grok.c: +0.4999999 positive, -0.4999999 negative)
+        let v3=v2>0?Math.floor(v2/sc+0.4999999):Math.ceil(v2/sc-0.4999999);
+        if(v3<-8){const ov=-8-v3;if(index<ov)index=ov;v3=-8;}
+        else if(v3>7){const ov=v3-7;if(index<ov)index=ov;v3=7;}
+        outS[i][s]=v3;
+        const rv=(v1+((v3*sc)<<11)+1024)>>11;
+        inS[i][s+2]=rv>=32767?32767:rv<=-32768?-32768:rv;
+        const d=pcmInOut[s+2]-inS[i][s+2];dist[i]+=d*d;
+      }
+      for(let x=index+8;x>256;x>>=1)if(++scale[i]>=12){scale[i]=11;break;}
+    }while(scale[i]<12&&index>1);
   }
-  ctx.stroke();
+
+  let min=Infinity;for(let i=0;i<8;i++)if(dist[i]<min){min=dist[i];best=i;}
+  for(let s=0;s<sampleCount;s++)pcmInOut[s+2]=inS[best][s+2];
+
+  const adpcm=new Uint8Array(8);
+  adpcm[0]=(best<<4)|(scale[best]&0xF);
+  for(let y=0;y<7;y++)adpcm[y+1]=((outS[best][y*2]&0xF)<<4)|(outS[best][y*2+1]&0xF);
+  return adpcm;
 }
 
-// ─── APP STATE ──────────────────────────────────────────────────────────────
-let currentFile = null;
-let currentFileType = null; // 'mca' | 'wav'
-let currentPCM = null; // { channels, sampleRate, numSamples, pcmChannels }
-let currentMCA = null; // parsed mca object
-
-function setStatus(msg, type='ok') {
-  const bar = document.getElementById('statusBar');
-  bar.style.display = 'flex';
-  bar.className = 'status-bar status-' + type;
-  bar.innerHTML = `<span class="status-dot"></span><span>${msg}</span>`;
-}
-
-function setInfoGrid(channels, sampleRate, bitDepth, numSamples) {
-  document.getElementById('infoCh').textContent = channels;
-  document.getElementById('infoRate').textContent = sampleRate.toLocaleString() + ' Hz';
-  document.getElementById('infoBit').textContent = bitDepth + 'b';
-  document.getElementById('infoSamples').textContent = numSamples.toLocaleString();
-  document.getElementById('infoGrid').style.display = 'grid';
-}
-
-function enableButtons() {
-  document.getElementById('btnMcaToWav').disabled = (currentFileType !== 'mca');
-  document.getElementById('btnWavToMca').disabled = (currentFileType !== 'wav');
-}
-
-async function handleFile(file) {
-  currentFile = file;
-  const ext = file.name.split('.').pop().toLowerCase();
-  currentFileType = (ext === 'mca') ? 'mca' : 'wav';
-
-  document.getElementById('dropLabel').textContent = file.name;
-  document.getElementById('dropHint').textContent = (currentFileType === 'mca' ? '.mca' : '.wav') + ' · ' + (file.size / 1024).toFixed(1) + ' KB';
-
-  const buf = await file.arrayBuffer();
-
-  try {
-    if (currentFileType === 'mca') {
-      currentMCA = parseMCA(buf);
-      const { channels, sampleRate, numSamples, loopStart, loopEnd } = currentMCA;
-      setInfoGrid(channels, sampleRate, 16, numSamples);
-      document.getElementById('loopStart').value = loopStart;
-      document.getElementById('loopEnd').value = loopEnd;
-
-      // Decode for playback
-      const pcmChannels = currentMCA.chanHeaders.map((ch, c) =>
-        dspDecode(currentMCA.chanAdpcm[c], ch.numSamples, ch.coefs)
-      );
-      currentPCM = { channels, sampleRate, numSamples, pcmChannels };
-      loadPlayer(pcmChannels, sampleRate, loopStart, loopEnd, file.name, 'mca');
-      setStatus(`MCA loaded — v${currentMCA.version}, ${channels}ch ${sampleRate} Hz`);
-    } else {
-      const wav = parseWAV(buf);
-      currentPCM = wav;
-      setInfoGrid(wav.channels, wav.sampleRate, wav.bitsPerSample, wav.numSamples);
-      loadPlayer(wav.pcmChannels, wav.sampleRate, 0, 0, file.name, 'wav');
-      setStatus(`WAV loaded — ${wav.channels}ch ${wav.sampleRate} Hz`);
-    }
-  } catch(e) {
-    setStatus(e.message, 'err');
-    currentFile = null;
-    enableButtons();
-    return;
+// ══════════════════════════════════════════════════════════════════════════════
+// MONO ENCODER — feeds DSPEncodeFrame frame by frame
+// ══════════════════════════════════════════════════════════════════════════════
+function encodeMono(pcm,coefs){
+  const SPB=14,BPB=8,frames=Math.ceil(pcm.length/SPB);
+  const out=new Uint8Array(frames*BPB);
+  // pcmInOut layout: [hist2=index0, hist1=index1, samples=index2..15]
+  const pcmInOut=new Int32Array(16);
+  for(let f=0;f<frames;f++){
+    const base=f*SPB,count=Math.min(SPB,pcm.length-base);
+    for(let s=0;s<count;s++)pcmInOut[s+2]=pcm[base+s];
+    for(let s=count;s<SPB;s++)pcmInOut[s+2]=0;
+    const adpcm=dspEncodeFrame(pcmInOut,count,coefs);
+    out.set(adpcm,f*BPB);
+    // Roll history: hist2 <- decoded[SPB-2], hist1 <- decoded[SPB-1]
+    // After DSPEncodeFrame, pcmInOut[2..SPB+1] holds reconstructed samples.
+    // We need the last two as the next frame's history.
+    pcmInOut[0]=pcmInOut[SPB];    // hist2
+    pcmInOut[1]=pcmInOut[SPB+1];  // hist1
   }
-  enableButtons();
+  return out;
 }
-
-function loadPlayer(pcmChannels, sampleRate, loopStart, loopEnd, filename, type) {
-  playerStop();
-  player.audioBuffer = pcmToAudioBuffer(pcmChannels, sampleRate);
-  player.sampleRate = sampleRate;
-  player.loopStart = loopStart;
-  player.loopEnd = loopEnd;
-  player.loopEnabled = loopEnd > loopStart;
-  player.pcmChannels = pcmChannels;
-  player.filename = filename;
-  player.fileType = type;
-  player.pauseOffset = 0;
-
-  const sec = pcmChannels[0].length / sampleRate;
-  document.getElementById('playerTrackName').textContent = filename;
-  document.getElementById('playerMeta').textContent =
-    `${pcmChannels.length}ch · ${sampleRate} Hz · ${fmtTime(sec)} · ${pcmChannels[0].length.toLocaleString()} samples`;
-  document.getElementById('playerSection').classList.add('visible');
-
-  drawWaveform(pcmChannels);
-  updateProgress(0);
-  updateLoopUI();
-  updateDownloadRow(pcmChannels, sampleRate, filename, type);
-}
-
-function updateDownloadRow(pcmChannels, sampleRate, filename, type) {
-  const row = document.getElementById('downloadRow');
-  row.style.display = 'flex';
-  row.innerHTML = '';
-
-  // Download as WAV (always available)
-  const btnWav = document.createElement('button');
-  btnWav.className = 'btn';
-  btnWav.innerHTML = '↓ Download WAV';
-  btnWav.onclick = () => {
-    const wav = buildWAV(pcmChannels, sampleRate);
-    downloadBuffer(wav, filename.replace(/\.(mca|wav)$/i, '') + '_decoded.wav', 'audio/wav');
-  };
-  row.appendChild(btnWav);
-
-  // If this was a WAV, also offer current MCA
-  if (type === 'wav') {
-    const btnMca = document.createElement('button');
-    btnMca.className = 'btn btn-primary';
-    btnMca.innerHTML = '↓ Download MCA';
-    btnMca.onclick = () => doWavToMca(pcmChannels, sampleRate);
-    row.appendChild(btnMca);
-  }
-}
-
-function downloadBuffer(buf, name, mime) {
-  const blob = new Blob([buf], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
-
-function doWavToMca(pcmChannels, sampleRate) {
-  const loopStart = parseInt(document.getElementById('loopStart').value) || 0;
-  const loopEnd = parseInt(document.getElementById('loopEnd').value) || 0;
-  const version = parseInt(document.getElementById('mcaVersion').value);
-  const name = (player.filename || 'output').replace(/\.wav$/i, '') + '.mca';
-
-  setStatus('<span class="spinner"></span> Encoding DSP-ADPCM…', 'info');
-  setTimeout(() => {
-    try {
-      const mcaBuf = buildMCA(pcmChannels, sampleRate, loopStart, loopEnd, version);
-      downloadBuffer(mcaBuf, name, 'application/octet-stream');
-      setStatus(`MCA encoded — v${version}, ${pcmChannels.length}ch ${sampleRate} Hz, ${(mcaBuf.byteLength/1024).toFixed(1)} KB`);
-    } catch(e) {
-      setStatus(e.message, 'err');
-    }
-  }, 20);
-}
-
-// ─── EVENT WIRING ────────────────────────────────────────────────────────────
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
-  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-});
-fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
-
-document.getElementById('btnMcaToWav').addEventListener('click', () => {
-  if (!currentMCA || !currentPCM) return;
-  setStatus('Decoding…', 'info');
-  setTimeout(() => {
-    try {
-      const wav = buildWAV(currentPCM.pcmChannels, currentPCM.sampleRate);
-      const name = (currentFile.name || 'output').replace(/\.mca$/i, '') + '.wav';
-      downloadBuffer(wav, name, 'audio/wav');
-      setStatus(`Decoded → ${name} (${(wav.byteLength/1024).toFixed(1)} KB)`);
-    } catch(e) {
-      setStatus(e.message, 'err');
-    }
-  }, 10);
-});
-
-document.getElementById('btnWavToMca').addEventListener('click', () => {
-  if (!currentPCM) return;
-  doWavToMca(currentPCM.pcmChannels, currentPCM.sampleRate);
-});
-
-document.getElementById('btnPlay').addEventListener('click', () => {
-  if (!player.audioBuffer) return;
-  if (player.isPlaying) playerPause();
-  else playerPlay();
-});
-
-document.getElementById('btnStop').addEventListener('click', () => playerStop());
-
-document.getElementById('btnLoop').addEventListener('click', () => {
-  player.loopEnabled = !player.loopEnabled;
-  if (player.isPlaying) {
-    const ctx = getAudioCtx();
-    const offset = (ctx.currentTime - player.startTime);
-    playerPlay(offset % player.audioBuffer.duration);
-  }
-  updateLoopUI();
-});
-
-document.getElementById('volume').addEventListener('input', e => {
-  if (!player.gainNode) return;
-  player.gainNode.gain.value = parseFloat(e.target.value);
-});
-
-document.getElementById('progressBar').addEventListener('click', e => {
-  if (!player.audioBuffer) return;
-  const rect = e.currentTarget.getBoundingClientRect();
-  const pct = (e.clientX - rect.left) / rect.width;
-  const dur = player.audioBuffer.duration;
-  const seekTo = pct * dur;
-  if (player.isPlaying) playerPlay(seekTo);
-  else { player.pauseOffset = seekTo; updateProgress(seekTo); }
-});
-
-document.getElementById('waveformCanvas').addEventListener('click', e => {
-  if (!player.audioBuffer) return;
-  const canvas = e.currentTarget;
-  const rect = canvas.getBoundingClientRect();
-  const pct = (e.clientX - rect.left) / rect.width;
-  const dur = player.audioBuffer.duration;
-  const seekTo = pct * dur;
-  if (player.isPlaying) playerPlay(seekTo);
-  else { player.pauseOffset = seekTo; updateProgress(seekTo); }
-});
-
-// Sync loop inputs to player
-['loopStart','loopEnd'].forEach(id => {
-  document.getElementById(id).addEventListener('change', e => {
-    const v = parseInt(e.target.value) || 0;
-    if (id === 'loopStart') player.loopStart = v;
-    else player.loopEnd = v;
-    player.loopEnabled = player.loopEnd > player.loopStart;
-    updateLoopUI();
-    if (player.isPlaying) {
-      const ctx = getAudioCtx();
-      const offset = (ctx.currentTime - player.startTime) % player.audioBuffer.duration;
-      playerPlay(offset);
-    }
-  });
-});
 </script>
 </body>
 </html>
