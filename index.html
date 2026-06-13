@@ -5,96 +5,96 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MCA ↔ WAV Converter</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0;}
+*{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg-primary:#fff;--bg-secondary:#f5f5f5;--bg-success:#e6f9ee;--bg-danger:#fdecea;
-  --text-primary:#111;--text-secondary:#666;--text-tertiary:#aaa;--text-success:#1a7a3f;--text-danger:#b71c1c;
-  --border-t:rgba(0,0,0,0.12);--border-s:rgba(0,0,0,0.2);--border-p:rgba(0,0,0,0.35);
-  --r-md:8px;--r-lg:12px;
+  --bg1:#fff;--bg2:#f5f5f5;--txt1:#111;--txt2:#666;--txt3:#aaa;
+  --brd:rgba(0,0,0,0.12);--brd2:rgba(0,0,0,0.2);
+  --ok-bg:#e6f9ee;--ok-txt:#1a7a3f;--err-bg:#fdecea;--err-txt:#b71c1c;
+  --r:8px;--rl:12px;
 }
 @media(prefers-color-scheme:dark){
   :root{
-    --bg-primary:#1e1e1e;--bg-secondary:#2a2a2a;--bg-success:#0d3320;--bg-danger:#3b1010;
-    --text-primary:#f0f0f0;--text-secondary:#aaa;--text-tertiary:#666;--text-success:#4caf82;--text-danger:#f08080;
-    --border-t:rgba(255,255,255,0.1);--border-s:rgba(255,255,255,0.2);--border-p:rgba(255,255,255,0.35);
+    --bg1:#1e1e1e;--bg2:#2a2a2a;--txt1:#f0f0f0;--txt2:#aaa;--txt3:#666;
+    --brd:rgba(255,255,255,0.1);--brd2:rgba(255,255,255,0.2);
+    --ok-bg:#0d3320;--ok-txt:#4caf82;--err-bg:#3b1010;--err-txt:#f08080;
   }
 }
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--text-primary);background:var(--bg-secondary);}
-.wrap{max-width:620px;margin:0 auto;padding:2rem 1rem;}
-h1{font-size:22px;font-weight:500;margin-bottom:4px;}
-.sub{font-size:13px;color:var(--text-secondary);margin-bottom:20px;}
-.card{background:var(--bg-primary);border:0.5px solid var(--border-t);border-radius:var(--r-lg);padding:1rem 1.25rem;margin-bottom:12px;}
-.card-title{font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
-.drop{display:flex;flex-direction:column;align-items:center;gap:6px;border:1.5px dashed var(--border-s);border-radius:var(--r-md);padding:1.25rem 1rem;text-align:center;cursor:pointer;transition:border-color .15s;}
-.drop:hover{border-color:var(--border-p);}
-.drop-icon{width:30px;height:30px;border-radius:50%;background:var(--bg-secondary);display:flex;align-items:center;justify-content:center;}
-.drop-icon svg{width:14px;height:14px;stroke:var(--text-secondary);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
-.drop-label{font-size:13px;color:var(--text-secondary);}
-.drop-hint{font-size:11px;color:var(--text-tertiary);}
-.meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
-.metric{background:var(--bg-secondary);border-radius:var(--r-md);padding:8px 10px;}
-.metric-label{font-size:11px;color:var(--text-secondary);margin-bottom:2px;}
-.metric-val{font-size:13px;font-weight:500;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.field{display:flex;flex-direction:column;gap:5px;}
-.field label{font-size:12px;color:var(--text-secondary);font-weight:500;}
-.field input,.field select{font-family:monospace;font-size:13px;padding:7px 10px;border-radius:var(--r-md);border:0.5px solid var(--border-s);background:var(--bg-secondary);color:var(--text-primary);width:100%;}
-.field input:focus,.field select:focus{outline:none;border-color:var(--border-p);}
-.ver-row{display:flex;align-items:flex-end;gap:8px;margin-top:10px;}
-.ver-row .field{flex:1;}
-.loop-toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;user-select:none;padding-bottom:8px;}
-.loop-toggle input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--text-primary);}
-.btn-row{display:flex;gap:8px;flex-wrap:wrap;}
-.btn{font-family:inherit;font-size:13px;font-weight:500;padding:7px 16px;border-radius:var(--r-md);border:0.5px solid var(--border-s);background:transparent;color:var(--text-primary);cursor:pointer;transition:background .12s;white-space:nowrap;}
-.btn:hover:not(:disabled){background:var(--bg-secondary);}
-.btn:active:not(:disabled){transform:scale(0.98);}
-.btn:disabled{opacity:.35;cursor:default;}
-.btn-primary{background:var(--text-primary);color:var(--bg-primary);border-color:transparent;}
-.btn-primary:hover:not(:disabled){opacity:.88;background:var(--text-primary);}
-.status{font-size:13px;padding:7px 11px;border-radius:var(--r-md);margin-top:10px;background:var(--bg-secondary);color:var(--text-secondary);display:flex;align-items:center;gap:6px;}
-.status.ok{background:var(--bg-success);color:var(--text-success);}
-.status.err{background:var(--bg-danger);color:var(--text-danger);}
-.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;}
-.player-wrap{padding:10px;background:var(--bg-secondary);border-radius:var(--r-md);}
-audio{width:100%;border-radius:var(--r-md);}
-.player-info{font-size:11px;color:var(--text-tertiary);margin-top:6px;display:flex;justify-content:space-between;}
-.dl-meta{font-size:12px;color:var(--text-tertiary);margin-top:8px;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg2);color:var(--txt1);padding:2rem 1rem}
+.wrap{max-width:580px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+h1{font-size:20px;font-weight:500}
+.sub{font-size:13px;color:var(--txt2);margin-top:3px;margin-bottom:4px}
+.card{background:var(--bg1);border:0.5px solid var(--brd);border-radius:var(--rl);padding:1rem 1.25rem}
+.card-label{font-size:11px;font-weight:500;color:var(--txt2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px}
+.drop-zone{border:1.5px dashed var(--brd2);border-radius:var(--r);padding:1.5rem 1rem;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;display:flex;flex-direction:column;align-items:center;gap:6px}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--txt2);background:var(--bg2)}
+.drop-icon{width:32px;height:32px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;margin-bottom:2px}
+.drop-main{font-size:13px;color:var(--txt2);font-weight:500}
+.drop-sub{font-size:11px;color:var(--txt3)}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
+.metric{background:var(--bg2);border-radius:var(--r);padding:8px 10px}
+.metric-l{font-size:11px;color:var(--txt2);margin-bottom:2px}
+.metric-v{font-size:13px;font-weight:500;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;color:var(--txt2);font-weight:500}
+.field input,.field select{font-family:monospace;font-size:13px;padding:7px 10px;border-radius:var(--r);border:0.5px solid var(--brd2);background:var(--bg2);color:var(--txt1);width:100%}
+.field input:focus,.field select:focus{outline:none;border-color:var(--txt2)}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+button{font-family:inherit;font-size:13px;font-weight:500;padding:7px 16px;border-radius:var(--r);border:0.5px solid var(--brd2);background:transparent;color:var(--txt1);cursor:pointer;transition:background .12s,opacity .12s;white-space:nowrap}
+button:hover:not(:disabled){background:var(--bg2)}
+button:active:not(:disabled){transform:scale(0.98)}
+button:disabled{opacity:.3;cursor:default}
+.btn-solid{background:var(--txt1);color:var(--bg1);border-color:transparent}
+.btn-solid:hover:not(:disabled){opacity:.85;background:var(--txt1)}
+.status{font-size:13px;padding:8px 12px;border-radius:var(--r);margin-top:10px;display:flex;align-items:center;gap:7px;background:var(--bg2);color:var(--txt2)}
+.status.ok{background:var(--ok-bg);color:var(--ok-txt)}
+.status.err{background:var(--err-bg);color:var(--err-txt)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.player-wrap{background:var(--bg2);border-radius:var(--r);padding:10px}
+audio{width:100%;border-radius:6px}
+.player-foot{display:flex;justify-content:space-between;font-size:11px;color:var(--txt3);margin-top:6px}
+.loop-label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--txt2);cursor:pointer;user-select:none}
+.loop-label input[type=checkbox]{width:13px;height:13px}
+.dl-hint{font-size:12px;color:var(--txt3);margin-top:8px}
+.mt10{margin-top:10px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>MCA ↔ WAV Converter</h1>
-  <p class="sub">Capcom MADP · v3/v4/v5 · DSP-ADPCM · Nintendo-accurate LPC coef derivation</p>
-
-  <div class="card">
-    <div class="card-title">Input file</div>
-    <label class="drop">
-      <div class="drop-icon">
-        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      </div>
-      <span class="drop-label" id="dropText">Click to choose a .mca or .wav file</span>
-      <span class="drop-hint">.mca · .wav</span>
-      <input type="file" accept=".mca,.wav" id="fileInput" style="display:none">
-    </label>
-    <div class="meta-grid" id="metaGrid" style="display:none"></div>
+  <div>
+    <h1>MCA ↔ WAV Converter</h1>
+    <p class="sub">Capcom MADP audio converter · v3 / v4 / v5 · DSP-ADPCM</p>
   </div>
 
   <div class="card">
-    <div class="card-title">Loop points</div>
-    <div class="row2">
+    <div class="card-label">Input file</div>
+    <label class="drop-zone" id="dropZone">
+      <div class="drop-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--txt2)"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <span class="drop-main" id="dropMain">Choose a .mca or .wav file</span>
+      <span class="drop-sub">.mca · .wav — drag &amp; drop supported</span>
+      <input type="file" accept=".mca,.wav" id="fileIn" style="display:none">
+    </label>
+    <div class="metrics" id="metrics" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Loop points</div>
+    <div class="field-row">
       <div class="field">
-        <label for="loopStart">Loop start (samples)</label>
-        <input type="number" id="loopStart" value="0" min="0">
+        <label for="ls">Loop start (samples)</label>
+        <input type="number" id="ls" value="0" min="0">
       </div>
       <div class="field">
-        <label for="loopEnd">Loop end (samples)</label>
-        <input type="number" id="loopEnd" value="0" min="0">
+        <label for="le">Loop end (samples)</label>
+        <input type="number" id="le" value="0" min="0">
       </div>
     </div>
-    <div class="ver-row">
+    <div class="mt10">
       <div class="field">
-        <label for="version">Output MCA version</label>
-        <select id="version">
+        <label for="ver">Output MCA version</label>
+        <select id="ver">
           <option value="3">v3 — RE Mercs 3D, SSF4 3D</option>
           <option value="4" selected>v4 — EX Troopers, AA5 (default)</option>
           <option value="5">v5 — AA6, MH4U</option>
@@ -104,111 +104,132 @@ audio{width:100%;border-radius:var(--r-md);}
   </div>
 
   <div class="card">
-    <div class="card-title">Convert</div>
+    <div class="card-label">Convert</div>
     <div class="btn-row">
-      <button class="btn" id="btnDecode" disabled>MCA → WAV</button>
-      <button class="btn" id="btnEncode" disabled>WAV → MCA</button>
+      <button id="btnDec" disabled>MCA → WAV</button>
+      <button id="btnEnc" disabled>WAV → MCA</button>
     </div>
-    <div class="status" id="status" style="display:none">
-      <span class="dot"></span><span id="statusText"></span>
-    </div>
+    <div class="status" id="status" style="display:none"><span class="dot"></span><span id="statusTxt"></span></div>
   </div>
 
   <div class="card" id="playerCard" style="display:none">
-    <div class="card-title">
+    <div class="card-label" style="display:flex;align-items:center;justify-content:space-between">
       <span>Preview</span>
-      <label class="loop-toggle">
-        <input type="checkbox" id="loopToggle" checked>
-        Loop playback
-      </label>
+      <label class="loop-label"><input type="checkbox" id="loopCb" checked> Loop</label>
     </div>
     <div class="player-wrap">
       <audio id="player" controls></audio>
-      <div class="player-info">
-        <span id="playerFile"></span>
-        <span id="playerLoopInfo"></span>
-      </div>
+      <div class="player-foot"><span id="pFile"></span><span id="pLoop"></span></div>
     </div>
   </div>
 
   <div class="card" id="dlCard" style="display:none">
-    <div class="card-title">Output</div>
+    <div class="card-label">Output</div>
     <div class="btn-row">
-      <button class="btn btn-primary" id="btnDl"><span id="dlLabel">Download file</span></button>
+      <button class="btn-solid" id="btnDl">⬇ <span id="dlLbl">Download</span></button>
     </div>
-    <div class="dl-meta" id="dlMeta"></div>
+    <div class="dl-hint" id="dlHint"></div>
   </div>
 </div>
 
 <script>
-// ─── State ────────────────────────────────────────────────────────────────────
-let fileData=null,fileExt="",fileName="",outBlob=null,outName="",parsedSampleRate=44100;
+let fileData=null,fileExt="",fileName="",outBlob=null,outName="",sr=44100;
 const player=document.getElementById("player");
-document.getElementById("fileInput").addEventListener("change",e=>{const f=e.target.files[0];if(f)handleFile(f);});
-document.getElementById("btnDecode").addEventListener("click",decode);
-document.getElementById("btnEncode").addEventListener("click",encode);
-document.getElementById("btnDl").addEventListener("click",dlFile);
-player.addEventListener("timeupdate",handleTimeUpdate);
-document.getElementById("loopStart").addEventListener("input",updateLoopInfo);
-document.getElementById("loopEnd").addEventListener("input",updateLoopInfo);
+const dz=document.getElementById("dropZone");
 
-function setStatus(msg,cls){document.getElementById("statusText").textContent=msg;const el=document.getElementById("status");el.className="status "+(cls||"");el.style.display="flex";}
-function setMeta(pairs){const g=document.getElementById("metaGrid");g.innerHTML=pairs.map(([l,v])=>`<div class="metric"><div class="metric-label">${l}</div><div class="metric-val">${v}</div></div>`).join("");g.style.display="grid";}
+document.getElementById("fileIn").addEventListener("change",e=>{const f=e.target.files[0];if(f)load(f);});
+dz.addEventListener("dragover",e=>{e.preventDefault();dz.classList.add("drag");});
+dz.addEventListener("dragleave",()=>dz.classList.remove("drag"));
+dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("drag");const f=e.dataTransfer.files[0];if(f)load(f);});
+document.getElementById("btnDec").addEventListener("click",decode);
+document.getElementById("btnEnc").addEventListener("click",encode);
+document.getElementById("btnDl").addEventListener("click",dl);
+player.addEventListener("timeupdate",()=>{
+  if(!document.getElementById("loopCb").checked)return;
+  const ls=getLS(),le=getLE();
+  if(le>ls&&player.currentTime*sr>=le)player.currentTime=ls/sr;
+});
+document.getElementById("ls").addEventListener("input",updateLoop);
+document.getElementById("le").addEventListener("input",updateLoop);
+
+function setStatus(m,c){const el=document.getElementById("status");el.className="status "+(c||"");el.style.display="flex";document.getElementById("statusTxt").textContent=m;}
 function hex(n){return"0x"+(n>>>0).toString(16).toUpperCase();}
 function tick(){return new Promise(r=>setTimeout(r,20));}
-function baseName(n){return n.replace(/\.[^.]+$/,"");}
-function getLS(){return parseInt(document.getElementById("loopStart").value)||0;}
-function getLE(){return parseInt(document.getElementById("loopEnd").value)||0;}
-function getVer(){return parseInt(document.getElementById("version").value)||4;}
-function isLoopEnabled(){return document.getElementById("loopToggle").checked;}
-function updateLoopInfo(){const ls=getLS(),le=getLE(),sr=parsedSampleRate||44100;document.getElementById("playerLoopInfo").textContent=le>ls?`Loop: ${ls.toLocaleString()} → ${le.toLocaleString()} (${((le-ls)/sr).toFixed(2)}s)`:"No loop";}
+function base(n){return n.replace(/\.[^.]+$/,"");}
+function getLS(){return parseInt(document.getElementById("ls").value)||0;}
+function getLE(){return parseInt(document.getElementById("le").value)||0;}
+function getVer(){return parseInt(document.getElementById("ver").value)||4;}
+function updateLoop(){const ls=getLS(),le=getLE();document.getElementById("pLoop").textContent=le>ls?`Loop: ${ls.toLocaleString()} → ${le.toLocaleString()} (${((le-ls)/sr).toFixed(2)}s)`:"No loop";}
 
-async function handleFile(f){
+async function load(f){
   fileName=f.name;fileExt=f.name.split(".").pop().toLowerCase();
   fileData=new Uint8Array(await f.arrayBuffer());
-  document.getElementById("dropText").textContent=f.name;
+  document.getElementById("dropMain").textContent=f.name;
   document.getElementById("playerCard").style.display="none";
   document.getElementById("dlCard").style.display="none";
   document.getElementById("status").style.display="none";
-  document.getElementById("btnDecode").disabled=fileExt!=="mca";
-  document.getElementById("btnEncode").disabled=fileExt!=="wav";
+  document.getElementById("btnDec").disabled=fileExt!=="mca";
+  document.getElementById("btnEnc").disabled=fileExt!=="wav";
   if(fileExt==="mca"){
-    try{const m=parseMCAHeader(fileData);parsedSampleRate=m.sampleRate;
-      document.getElementById("loopStart").value=m.loopStart;document.getElementById("loopEnd").value=m.loopEnd;
-      setMeta([["Version","v"+m.version],["Channels",m.channels],["Rate",m.sampleRate+" Hz"],["Samples",m.numSamples.toLocaleString()],["Loop start",m.loopStart.toLocaleString()],["Loop end",m.loopEnd.toLocaleString()],["Audio at",hex(m.startOffset)],["Head",hex(m.headSize)]]);
-      updateLoopInfo();setStatus("MCA v"+m.version+" parsed — "+m.channels+"ch "+m.sampleRate+" Hz","ok");
-    }catch(e){setStatus("MCA parse error: "+e.message,"err");}
+    try{const m=parseMCA(fileData);sr=m.sampleRate;
+      document.getElementById("ls").value=m.loopStart;document.getElementById("le").value=m.loopEnd;
+      showMetrics([["Version","v"+m.version],["Channels",m.channels],["Rate",m.sampleRate+" Hz"],["Samples",m.numSamples.toLocaleString()],["Loop start",m.loopStart.toLocaleString()],["Loop end",m.loopEnd.toLocaleString()],["Audio at",hex(m.startOffset)],["Header",hex(m.headSize)]]);
+      updateLoop();setStatus("MCA v"+m.version+" · "+m.channels+"ch · "+m.sampleRate+" Hz","ok");
+    }catch(e){setStatus("Parse error: "+e.message,"err");}
   } else if(fileExt==="wav"){
-    try{const w=parseWAVHeader(fileData);parsedSampleRate=w.sampleRate;
-      setMeta([["Channels",w.channels],["Rate",w.sampleRate+" Hz"],["Bit depth",w.bitsPerSample+"b"],["Samples",w.numSamples.toLocaleString()]]);
-      updateLoopInfo();setStatus("WAV loaded — "+w.channels+"ch "+w.sampleRate+" Hz","ok");
-    }catch(e){setStatus("WAV parse error: "+e.message,"err");}
+    try{const w=parseWAV(fileData);sr=w.sampleRate;
+      showMetrics([["Channels",w.channels],["Rate",w.sampleRate+" Hz"],["Bit depth",w.bitsPerSample+"b"],["Samples",w.numSamples.toLocaleString()]]);
+      updateLoop();setStatus("WAV loaded · "+w.channels+"ch · "+w.sampleRate+" Hz","ok");
+    }catch(e){setStatus("Parse error: "+e.message,"err");}
   }
 }
 
-async function decode(){setStatus("Decoding…","");await tick();
-  try{const wav=mcaToWav(fileData);const blob=new Blob([wav],{type:"audio/wav"});const name=baseName(fileName)+".wav";
-    outBlob=blob;outName=name;player.src=URL.createObjectURL(blob);
-    document.getElementById("playerCard").style.display="";document.getElementById("playerFile").textContent=name;
-    updateLoopInfo();showDl(name,wav.length);setStatus("Decoded → "+name,"ok");
-  }catch(e){setStatus("Decode error: "+e.message,"err");}
+function showMetrics(pairs){
+  const m=document.getElementById("metrics");
+  m.innerHTML=pairs.map(([l,v])=>`<div class="metric"><div class="metric-l">${l}</div><div class="metric-v">${v}</div></div>`).join("");
+  m.style.display="grid";
 }
 
-async function encode(){setStatus("Encoding… (LPC analysis, may take a moment)","");await tick();
-  try{const mca=wavToMca(fileData,getLS(),getLE(),getVer());const blob=new Blob([mca],{type:"application/octet-stream"});const name=baseName(fileName)+".mca";
-    outBlob=blob;outName=name;document.getElementById("playerCard").style.display="none";
+async function decode(){
+  setStatus("Decoding…","");await tick();
+  try{
+    const wav=mcaToWav(fileData);
+    const blob=new Blob([wav],{type:"audio/wav"});
+    const name=base(fileName)+".wav";
+    outBlob=blob;outName=name;
+    player.src=URL.createObjectURL(blob);
+    document.getElementById("playerCard").style.display="";
+    document.getElementById("pFile").textContent=name;
+    updateLoop();showDl(name,wav.length);setStatus("Decoded → "+name,"ok");
+  }catch(e){setStatus("Error: "+e.message,"err");}
+}
+
+async function encode(){
+  setStatus("Encoding… (LPC analysis, may take a moment)","");await tick();
+  try{
+    const mca=wavToMca(fileData,getLS(),getLE(),getVer());
+    const blob=new Blob([mca],{type:"application/octet-stream"});
+    const name=base(fileName)+".mca";
+    outBlob=blob;outName=name;
+    document.getElementById("playerCard").style.display="none";
     showDl(name,mca.length);setStatus("Encoded → "+name,"ok");
-  }catch(e){setStatus("Encode error: "+e.message,"err");}
+  }catch(e){setStatus("Error: "+e.message,"err");}
 }
 
-function showDl(name,bytes){document.getElementById("dlLabel").textContent="Download "+name;document.getElementById("dlMeta").textContent=name+" · "+(bytes/1024).toFixed(1)+" KB";document.getElementById("dlCard").style.display="";}
-function dlFile(){if(!outBlob)return;const a=document.createElement("a");a.href=URL.createObjectURL(outBlob);a.download=outName;a.click();}
-function handleTimeUpdate(){if(!isLoopEnabled())return;const ls=getLS(),le=getLE(),sr=parsedSampleRate||44100;if(le>ls&&player.currentTime*sr>=le)player.currentTime=ls/sr;}
+function showDl(name,bytes){
+  document.getElementById("dlLbl").textContent="Download "+name;
+  document.getElementById("dlHint").textContent=name+" · "+(bytes/1024).toFixed(1)+" KB";
+  document.getElementById("dlCard").style.display="";
+}
+function dl(){
+  if(!outBlob)return;
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(outBlob);
+  a.download=outName;a.click();
+}
 
-// ══════════════════════════════════════════════════════════════════════════════
-// MCA HEADER PARSER — v3/v4/v5 (vgmstream-accurate)
-// ══════════════════════════════════════════════════════════════════════════════
-function parseMCAHeader(buf){
+// ── MCA PARSER ──────────────────────────────────────────────────────────────
+function parseMCA(buf){
   const v=new DataView(buf.buffer,buf.byteOffset),len=buf.length;
   if(String.fromCharCode(buf[0],buf[1],buf[2],buf[3])!=="MADP")throw new Error("Not a MADP/MCA file");
   const version=v.getUint16(0x04,true),channels=v.getUint8(0x08),interleave=v.getUint16(0x0A,true)||0x100;
@@ -216,31 +237,25 @@ function parseMCAHeader(buf){
   const loopStart=v.getUint32(0x14,true),loopEnd=v.getUint32(0x18,true),dataSize=v.getUint32(0x20,true);
   if(channels<1||channels>8)throw new Error("Bad channel count: "+channels);
   if(sampleRate<100||sampleRate>192000)throw new Error("Bad sample rate: "+sampleRate);
-  if(dataSize===0||dataSize>len)throw new Error("Bad data_size: "+hex(dataSize)+" (file: "+hex(len)+")");
+  if(dataSize===0||dataSize>len)throw new Error("Bad data_size: "+hex(dataSize));
   const CS=0x30;let headSize,coefShift,startOffset;
   if(version<=3){headSize=len-dataSize;coefShift=0;startOffset=headSize;}
   else{headSize=v.getUint16(0x1C,true);coefShift=v.getUint16(0x28,true);startOffset=len-dataSize;}
   const coefOffset=(headSize-CS*channels)+coefShift*0x14;
-  if(startOffset<0||startOffset>=len)throw new Error("Audio start out of range: "+hex(startOffset)+" (file: "+hex(len)+")");
+  if(startOffset<0||startOffset>=len)throw new Error("Audio start out of range: "+hex(startOffset));
   if(coefOffset<0||coefOffset+CS*channels>startOffset)throw new Error("Coef block out of range: "+hex(coefOffset));
   return{version,channels,interleave,numSamples,sampleRate,loopStart,loopEnd,headSize,coefOffset,startOffset,dataSize};
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// MCA → WAV
-// ══════════════════════════════════════════════════════════════════════════════
+// ── MCA → WAV ───────────────────────────────────────────────────────────────
 function mcaToWav(buf){
-  const m=parseMCAHeader(buf);
-  const dv=new DataView(buf.buffer,buf.byteOffset);
+  const m=parseMCA(buf);const dv=new DataView(buf.buffer,buf.byteOffset);
   const coefs=[];
   for(let ch=0;ch<m.channels;ch++){const c=new Int16Array(16);for(let i=0;i<16;i++)c[i]=dv.getInt16(m.coefOffset+ch*0x30+i*2,true);coefs.push(c);}
   const pcm=decodeDSP(buf.slice(m.startOffset),m.channels,m.numSamples,coefs,m.interleave);
   return buildWAV(pcm,m.channels,m.sampleRate);
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// DSP-ADPCM DECODER
-// ══════════════════════════════════════════════════════════════════════════════
 function decodeDSP(src,channels,totalSamples,coefs,interleave){
   const SPB=14,BPB=8,fpB=Math.floor(interleave/BPB);
   const out=new Int16Array(totalSamples*channels);
@@ -271,9 +286,6 @@ function decodeDSP(src,channels,totalSamples,coefs,interleave){
   return out;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// WAV BUILDER / PARSER
-// ══════════════════════════════════════════════════════════════════════════════
 function buildWAV(pcm,channels,sampleRate){
   const db=pcm.length*2,ab=new ArrayBuffer(44+db),dv=new DataView(ab);
   const ws=(o,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i));};
@@ -282,7 +294,8 @@ function buildWAV(pcm,channels,sampleRate){
   dv.setUint16(32,channels*2,true);dv.setUint16(34,16,true);ws(36,"data");dv.setUint32(40,db,true);
   new Int16Array(ab,44).set(pcm);return new Uint8Array(ab);
 }
-function parseWAVHeader(buf){
+
+function parseWAV(buf){
   const dv=new DataView(buf.buffer,buf.byteOffset);
   if(String.fromCharCode(buf[0],buf[1],buf[2],buf[3])!=="RIFF")throw new Error("Not a RIFF WAV");
   const channels=dv.getUint16(22,true),sampleRate=dv.getUint32(24,true),bitsPerSample=dv.getUint16(34,true);
@@ -296,11 +309,9 @@ function parseWAVHeader(buf){
   throw new Error("No data chunk in WAV");
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// WAV → MCA ENCODER
-// ══════════════════════════════════════════════════════════════════════════════
+// ── WAV → MCA ───────────────────────────────────────────────────────────────
 function wavToMca(buf,loopStart=0,loopEnd=0,version=4){
-  const{channels,sampleRate,numSamples,dataOffset,dataSize}=parseWAVHeader(buf);
+  const{channels,sampleRate,numSamples,dataOffset,dataSize}=parseWAV(buf);
   const pcm=new Int16Array(buf.buffer,buf.byteOffset+dataOffset,dataSize>>1);
   const INTERLEAVE=0x100,SPB=14,fpB=Math.floor(INTERLEAVE/8),CS=0x30,FIXED_HDR=0x30;
   const chEnc=[],coefs=[];
@@ -330,15 +341,11 @@ function wavToMca(buf,loopStart=0,loopEnd=0,version=4){
   return out;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// LPC COEF DERIVATION — faithful JS port of grok.c DSPCorrelateCoefs()
-// Derives 8 optimal predictor coef pairs from the signal via autocorrelation.
-// ══════════════════════════════════════════════════════════════════════════════
+// ── LPC COEF DERIVATION ─────────────────────────────────────────────────────
 function dspCorrelateCoefs(pcm){
   const numFrames=Math.ceil(pcm.length/14);
   const records=[];
   const hist=[new Float64Array(14),new Float64Array(14)];
-
   for(let fi=0;fi<numFrames;fi++){
     for(let z=0;z<14;z++)hist[0][z]=hist[1][z];
     for(let z=0;z<14;z++)hist[1][z]=(fi*14+z<pcm.length)?pcm[fi*14+z]:0;
@@ -348,30 +355,23 @@ function dspCorrelateCoefs(pcm){
       const vidxs=[0,0,0];
       if(!analyzeRanges(mtx,vidxs)){
         bidirectionalFilter(mtx,vidxs,vec1);
-        if(!quadraticMerge(vec1)){
-          const rec=new Float64Array(3);finishRecord(vec1,rec);records.push(rec);
-        }
+        if(!quadraticMerge(vec1)){const rec=new Float64Array(3);finishRecord(vec1,rec);records.push(rec);}
       }
     }
   }
-
   const vecBest=Array.from({length:8},()=>new Float64Array(3));
   const vec1=new Float64Array([1.0,0.0,0.0]);
   if(records.length===0)return new Int16Array(16);
-
   for(const r of records){const tmp=new Float64Array(3);matrixFilter(r,tmp);for(let y=1;y<=2;y++)vec1[y]+=tmp[y];}
   for(let y=1;y<=2;y++)vec1[y]/=records.length;
   mergeFinishRecord(vec1,vecBest[0]);
-
   let exp=1;
   for(let w=0;w<3;w++){
     const vec2=new Float64Array([0.0,-1.0,0.0]);
     for(let i=0;i<exp;i++)for(let y=0;y<=2;y++)vecBest[exp+i][y]=0.01*vec2[y]+vecBest[i][y];
-    exp=1<<(++w);
-    filterRecords(vecBest,exp,records);
+    exp=1<<(++w);filterRecords(vecBest,exp,records);
   }
   filterRecords(vecBest,8,records);
-
   const out=new Int16Array(16);
   for(let z=0;z<8;z++){
     let d=-vecBest[z][1]*2048.0;out[z*2]=d>32767?32767:d<-32768?-32768:Math.round(d)|0;
@@ -380,16 +380,8 @@ function dspCorrelateCoefs(pcm){
   return out;
 }
 
-function innerProductMerge(b){
-  const v=new Float64Array(3);
-  for(let i=0;i<=2;i++){v[i]=0;for(let x=0;x<14;x++)v[i]-=(b[x]||0)*(x>=i?b[x-i]:0);}
-  return v;
-}
-function outerProductMerge(b){
-  const mtx=[[],[new Float64Array(3)],[new Float64Array(3)]];
-  for(let x=1;x<=2;x++)for(let y=1;y<=2;y++){mtx[x][y]=0;for(let z=0;z<14;z++)mtx[x][y]+=(z>=x?b[z-x]:0)*(z>=y?b[z-y]:0);}
-  return mtx;
-}
+function innerProductMerge(b){const v=new Float64Array(3);for(let i=0;i<=2;i++){v[i]=0;for(let x=0;x<14;x++)v[i]-=(b[x]||0)*(x>=i?b[x-i]:0);}return v;}
+function outerProductMerge(b){const mtx=[[],[new Float64Array(3)],[new Float64Array(3)]];for(let x=1;x<=2;x++)for(let y=1;y<=2;y++){mtx[x][y]=0;for(let z=0;z<14;z++)mtx[x][y]+=(z>=x?b[z-x]:0)*(z>=y?b[z-y]:0);}return mtx;}
 function analyzeRanges(mtx,vi){
   const rec=[0,0,0];
   for(let x=1;x<=2;x++){const val=Math.max(Math.abs(mtx[x][1]),Math.abs(mtx[x][2]));if(val<Number.EPSILON)return true;rec[x]=1/val;}
@@ -411,15 +403,8 @@ function bidirectionalFilter(mtx,vi,vo){
   for(let i=2;i>0;i--){let t=vo[i];for(let y=i+1;y<=2;y++)t-=vo[y]*mtx[i][y];vo[i]=t/mtx[i][i];}
   vo[0]=1.0;
 }
-function quadraticMerge(v){
-  const v2=v[2],tmp=1-(v2*v2);if(tmp===0)return true;
-  v[0]=(v[0]-(v2*v2))/tmp;v[1]=(v[1]-(v[1]*v2))/tmp;return Math.abs(v[1])>1.0;
-}
-function finishRecord(inp,out){
-  const v=new Float64Array(inp);
-  for(let z=1;z<=2;z++){if(v[z]>=1)v[z]=0.9999999999;else if(v[z]<=-1)v[z]=-0.9999999999;}
-  out[0]=1.0;out[1]=(v[2]*v[1])+v[1];out[2]=v[2];
-}
+function quadraticMerge(v){const v2=v[2],tmp=1-(v2*v2);if(tmp===0)return true;v[0]=(v[0]-(v2*v2))/tmp;v[1]=(v[1]-(v[1]*v2))/tmp;return Math.abs(v[1])>1.0;}
+function finishRecord(inp,out){const v=new Float64Array(inp);for(let z=1;z<=2;z++){if(v[z]>=1)v[z]=0.9999999999;else if(v[z]<=-1)v[z]=-0.9999999999;}out[0]=1.0;out[1]=(v[2]*v[1])+v[1];out[2]=v[2];}
 function matrixFilter(src,dst){
   const mtx=[[],[new Float64Array(3)],[new Float64Array(3)]];
   mtx[2][0]=1.0;for(let i=1;i<=2;i++)mtx[2][i]=-src[i];
@@ -453,18 +438,12 @@ function filterRecords(vecBest,exp,records){
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// DSP FRAME ENCODER — faithful JS port of grok.c DSPEncodeFrame()
-// pcmInOut: Int32Array[16] = [hist2, hist1, sample0..13]
-//   → updated in-place with decoded reconstructed values
-// returns: Uint8Array[8] ADPCM frame bytes
-// ══════════════════════════════════════════════════════════════════════════════
+// ── DSP FRAME ENCODER ────────────────────────────────────────────────────────
 function dspEncodeFrame(pcmInOut,sampleCount,coefsFlat){
   const inS=Array.from({length:8},()=>new Int32Array(16));
   const outS=Array.from({length:8},()=>new Int32Array(14));
   const scale=new Int32Array(8),dist=new Float64Array(8);
   let best=0;
-
   for(let i=0;i<8;i++){
     const c0=coefsFlat[i*2],c1=coefsFlat[i*2+1];
     inS[i][0]=pcmInOut[0];inS[i][1]=pcmInOut[1];
@@ -484,7 +463,6 @@ function dspEncodeFrame(pcmInOut,sampleCount,coefsFlat){
         const v1=(inS[i][s]*c1)+(inS[i][s+1]*c0);
         const v2=((pcmInOut[s+2]<<11)-v1)/2048|0;
         const sc=1<<scale[i];
-        // Round away from zero (grok.c: +0.4999999 positive, -0.4999999 negative)
         let v3=v2>0?Math.floor(v2/sc+0.4999999):Math.ceil(v2/sc-0.4999999);
         if(v3<-8){const ov=-8-v3;if(index<ov)index=ov;v3=-8;}
         else if(v3>7){const ov=v3-7;if(index<ov)index=ov;v3=7;}
@@ -496,35 +474,25 @@ function dspEncodeFrame(pcmInOut,sampleCount,coefsFlat){
       for(let x=index+8;x>256;x>>=1)if(++scale[i]>=12){scale[i]=11;break;}
     }while(scale[i]<12&&index>1);
   }
-
   let min=Infinity;for(let i=0;i<8;i++)if(dist[i]<min){min=dist[i];best=i;}
   for(let s=0;s<sampleCount;s++)pcmInOut[s+2]=inS[best][s+2];
-
   const adpcm=new Uint8Array(8);
   adpcm[0]=(best<<4)|(scale[best]&0xF);
   for(let y=0;y<7;y++)adpcm[y+1]=((outS[best][y*2]&0xF)<<4)|(outS[best][y*2+1]&0xF);
   return adpcm;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// MONO ENCODER — feeds DSPEncodeFrame frame by frame
-// ══════════════════════════════════════════════════════════════════════════════
 function encodeMono(pcm,coefs){
   const SPB=14,BPB=8,frames=Math.ceil(pcm.length/SPB);
   const out=new Uint8Array(frames*BPB);
-  // pcmInOut layout: [hist2=index0, hist1=index1, samples=index2..15]
   const pcmInOut=new Int32Array(16);
   for(let f=0;f<frames;f++){
-    const base=f*SPB,count=Math.min(SPB,pcm.length-base);
-    for(let s=0;s<count;s++)pcmInOut[s+2]=pcm[base+s];
+    const b=f*SPB,count=Math.min(SPB,pcm.length-b);
+    for(let s=0;s<count;s++)pcmInOut[s+2]=pcm[b+s];
     for(let s=count;s<SPB;s++)pcmInOut[s+2]=0;
     const adpcm=dspEncodeFrame(pcmInOut,count,coefs);
     out.set(adpcm,f*BPB);
-    // Roll history: hist2 <- decoded[SPB-2], hist1 <- decoded[SPB-1]
-    // After DSPEncodeFrame, pcmInOut[2..SPB+1] holds reconstructed samples.
-    // We need the last two as the next frame's history.
-    pcmInOut[0]=pcmInOut[SPB];    // hist2
-    pcmInOut[1]=pcmInOut[SPB+1];  // hist1
+    pcmInOut[0]=pcmInOut[SPB];pcmInOut[1]=pcmInOut[SPB+1];
   }
   return out;
 }
