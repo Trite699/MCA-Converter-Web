@@ -313,7 +313,11 @@ function parseWAV(buf){
 function wavToMca(buf,loopStart=0,loopEnd=0,version=4){
   const{channels,sampleRate,numSamples,dataOffset,dataSize}=parseWAV(buf);
   const pcm=new Int16Array(buf.buffer,buf.byteOffset+dataOffset,dataSize>>1);
-  const INTERLEAVE=0x100,SPB=14,fpB=Math.floor(INTERLEAVE/8),CS=0x30,FIXED_HDR=0x30;
+  const INTERLEAVE=0x100,SPB=14,fpB=Math.floor(INTERLEAVE/8),CS=0x30;
+  // headSize matches C# source: (version<5 ? 0x34 : 0x38) + 0x30*channels
+  // but v3 has no headSize field so we compute it the same way for layout
+  const BASE_HDR=version>=5?0x38:0x34;
+  const headSize=BASE_HDR+channels*CS;
   const chEnc=[],coefs=[];
   for(let ch=0;ch<channels;ch++){
     const mono=new Int16Array(numSamples);
@@ -323,16 +327,35 @@ function wavToMca(buf,loopStart=0,loopEnd=0,version=4){
   }
   const totalBlocks=Math.ceil(Math.ceil(numSamples/SPB)/fpB);
   const audioBytes=totalBlocks*channels*INTERLEAVE;
-  const headSize=FIXED_HDR+channels*CS;
   const out=new Uint8Array(headSize+audioBytes);
   const dv=new DataView(out.buffer);
+  // MADP magic
   out[0]=0x4D;out[1]=0x41;out[2]=0x44;out[3]=0x50;
-  dv.setUint16(0x04,version,true);dv.setUint8(0x08,channels);dv.setUint16(0x0A,INTERLEAVE,true);
-  dv.setUint32(0x0C,numSamples,true);dv.setUint16(0x10,sampleRate,true);
-  dv.setUint32(0x14,loopStart,true);dv.setUint32(0x18,loopEnd,true);
-  if(version<=3){dv.setUint32(0x20,audioBytes,true);}
-  else{dv.setUint16(0x1C,headSize,true);dv.setUint32(0x20,audioBytes,true);dv.setUint16(0x28,0,true);}
-  for(let ch=0;ch<channels;ch++){const cOff=FIXED_HDR+ch*CS;for(let i=0;i<16;i++)dv.setInt16(cOff+i*2,coefs[ch][i],true);}
+  dv.setUint16(0x04,version,true);
+  dv.setUint8(0x08,channels);
+  dv.setUint16(0x0A,INTERLEAVE,true);
+  dv.setUint32(0x0C,numSamples,true);
+  dv.setUint16(0x10,sampleRate,true);
+  dv.setUint32(0x14,loopStart,true);
+  dv.setUint32(0x18,loopEnd,true);
+  if(version<=3){
+    // v3: headSize field not present, dataSize at 0x20
+    dv.setUint32(0x20,audioBytes,true);
+  } else {
+    // v4+: headSize at 0x1C, dataSize at 0x20, coefShift at 0x28
+    dv.setUint16(0x1C,headSize,true);
+    dv.setUint32(0x20,audioBytes,true);
+    dv.setUint16(0x28,0,true);
+    if(version>=5){
+      // v5: extra int at 0x30 = audio start offset (= headSize)
+      dv.setUint32(0x30,headSize,true);
+    }
+  }
+  // Write coefs — start at BASE_HDR (0x34 for v4, 0x38 for v5)
+  for(let ch=0;ch<channels;ch++){
+    const cOff=BASE_HDR+ch*CS;
+    for(let i=0;i<16;i++)dv.setInt16(cOff+i*2,coefs[ch][i],true);
+  }
   for(let b=0;b<totalBlocks;b++)
     for(let ch=0;ch<channels;ch++){
       const src=chEnc[ch].slice(b*INTERLEAVE,(b+1)*INTERLEAVE);
