@@ -659,50 +659,83 @@ function updateModBadge() {
 }
 
 // ─── Save OBB ─────────────────────────────────────────────────────────────────
+// Builds output as an array of typed-array chunks fed directly into Blob()
+// so we never hold a full second copy of the file in memory at once.
 function saveObb() {
   if (!obbBuffer) return;
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Building…';
+
+  // Use setTimeout so the UI can repaint before the heavy work starts
+  setTimeout(() => {
+    try {
+      _doSaveObb();
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '⬇ Download OBB';
+    }
+  }, 30);
+}
+
+function _doSaveObb() {
   const origView  = new DataView(obbBuffer);
   const origBytes = new Uint8Array(obbBuffer);
   const HEADER = 0x10, ENTRY = 0x10;
   const count  = files.length;
 
-  let dataBytes = 0;
-  for (const f of files) dataBytes += (f.replaced ? f.replacedData.length : f.size);
+  // ── 1. Build header chunk (16 bytes) ──────────────────────────────────────
+  const headerBuf  = new ArrayBuffer(HEADER);
+  const headerView = new DataView(headerBuf);
+  const headerArr  = new Uint8Array(headerBuf);
+  headerArr[0] = origBytes[0]; headerArr[1] = origBytes[1];
+  headerArr[2] = origBytes[2]; headerArr[3] = origBytes[3];
+  headerView.setInt32 (4,  origView.getInt32 (4,  true), true); // version
+  headerView.setInt32 (8,  count,                         true); // fileCount
+  headerView.setUint32(12, origView.getUint32(12, true), true); // crc
 
-  const outBuf  = new ArrayBuffer(HEADER + count * ENTRY + dataBytes);
-  const outView = new DataView(outBuf);
-  const out     = new Uint8Array(outBuf);
-
-  // Header — copy magic, version, crc; update fileCount
-  out[0] = origBytes[0]; out[1] = origBytes[1];
-  out[2] = origBytes[2]; out[3] = origBytes[3];
-  outView.setInt32 (4,  origView.getInt32 (4,  true), true); // version
-  outView.setInt32 (8,  count,                         true); // fileCount
-  outView.setUint32(12, origView.getUint32(12, true), true); // crc
-
-  // Files + entry table
-  let pos = HEADER + count * ENTRY;
+  // ── 2. Pre-calculate offsets so we can fill the entry table ───────────────
+  const fileDataOffset = HEADER + count * ENTRY; // where file data starts
+  const offsets = new Int32Array(count);
+  let pos = fileDataOffset;
   for (let i = 0; i < count; i++) {
-    const f    = files[i];
-    const data = f.replaced ? f.replacedData : f.data;
-    out.set(data, pos);
-
-    const eOff = HEADER + i * ENTRY;
-    outView.setUint32(eOff,      f.pathHash,  true);
-    outView.setInt32 (eOff + 4,  pos,         true);
-    outView.setInt32 (eOff + 8,  data.length, true);
-    outView.setUint32(eOff + 12, f.unkHash,   true);
-
-    pos += data.length;
+    offsets[i] = pos;
+    pos += files[i].replaced ? files[i].replacedData.length : files[i].size;
   }
 
-  const blob = new Blob([outBuf], { type: 'application/octet-stream' });
+  // ── 3. Build entry table chunk (count × 16 bytes) ─────────────────────────
+  const entryBuf  = new ArrayBuffer(count * ENTRY);
+  const entryView = new DataView(entryBuf);
+  for (let i = 0; i < count; i++) {
+    const f    = files[i];
+    const size = f.replaced ? f.replacedData.length : f.size;
+    const off  = i * ENTRY;
+    entryView.setUint32(off,      f.pathHash, true);
+    entryView.setInt32 (off + 4,  offsets[i], true);
+    entryView.setInt32 (off + 8,  size,       true);
+    entryView.setUint32(off + 12, f.unkHash,  true);
+  }
+
+  // ── 4. Collect chunks: header + entries + each file's data ────────────────
+  // File data chunks are either a view into the original buffer (zero-copy)
+  // or the replacement Uint8Array — no full-file duplication.
+  const chunks = [headerBuf, entryBuf];
+  for (const f of files) {
+    chunks.push(f.replaced ? f.replacedData : f.data);
+  }
+
+  // ── 5. Hand chunks to Blob — browser streams them to disk ─────────────────
+  const blob = new Blob(chunks, { type: 'application/octet-stream' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
   a.download = obbFileName.replace(/\.obb$/i, '') + '_patched.obb';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  // Delay revoke so the download has time to start
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 // ─── Drag & drop / file input ─────────────────────────────────────────────────
